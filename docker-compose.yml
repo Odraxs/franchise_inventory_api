@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-franchise_inventory}
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      # Host port 5435 is used by the local PostgreSQL server
+      - "${DB_HOST_PORT:-5436}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: deployment/Dockerfile
+    environment:
+      # Loads application-<profile>.yaml on top of application.yaml
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILE:-local}
+      ADAPTERS_R2DBC_HOST: postgres
+      ADAPTERS_R2DBC_PORT: 5432
+      ADAPTERS_R2DBC_DATABASE: ${DB_NAME:-franchise_inventory}
+      ADAPTERS_R2DBC_USERNAME: ${DB_USERNAME:-postgres}
+      ADAPTERS_R2DBC_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
