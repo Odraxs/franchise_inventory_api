@@ -67,3 +67,9 @@ Task options and adapter types: [tasks docs](https://bancolombia.github.io/scaff
 - Start the app with the `local` profile, which holds the DB settings (`adapters.r2dbc` in `application-local.yaml`):
   `./gradlew :app-service:bootRun --args='--spring.profiles.active=local'`
 - PostgreSQL runs on `localhost:5435`, database `franchise_inventory`.
+
+## Database migrations
+
+- Flyway applies the SQL files in `infrastructure/driven-adapters/r2dbc-postgresql/src/main/resources/db/migration` on app startup (`V<n>__<description>.sql`). Never edit an applied migration; add a new one.
+- Flyway uses JDBC and reads its connection from `adapters.r2dbc.*` (see `spring.flyway` in `application.yaml`), so the `local` profile and the `ADAPTERS_R2DBC_*` variables in `docker-compose.yml` configure both.
+- Tables: `franchise`, `branch`, `product` (UUID ids, soft delete on `product.deleted_at`). Name uniqueness is case-insensitive; `stock >= 0`; the Top-Stock tie-break is the oldest Product. The comments in `V1` explain each rule.
