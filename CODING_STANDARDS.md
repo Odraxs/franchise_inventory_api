@@ -33,7 +33,6 @@ Infrastructure modules never depend on `app-service` or on each other.
 
 - An adapter implements a model gateway and owns its persistence types (`*Data` entity, Spring Data reactive repository).
 - Map persistence types to domain models inside the adapter. Domain models stay free of persistence annotations.
-- R2DBC adapters extend the helper `r2dbc/helper/ReactiveAdapterOperations`.
 - Wrap calls that leave the process with the resilience operators in section 3.
 
 ### 1.4 Entry points

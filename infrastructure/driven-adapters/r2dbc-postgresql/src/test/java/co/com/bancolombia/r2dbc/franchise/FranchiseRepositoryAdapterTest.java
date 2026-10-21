@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.reactivecommons.utils.ObjectMapper;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import reactor.core.publisher.Mono;
@@ -24,14 +23,11 @@ class FranchiseRepositoryAdapterTest {
     @Mock
     private FranchiseDataRepository repository;
 
-    @Mock
-    private ObjectMapper mapper;
-
     private FranchiseRepositoryAdapter adapter;
 
     @BeforeEach
     void setUp() {
-        adapter = new FranchiseRepositoryAdapter(repository, mapper);
+        adapter = new FranchiseRepositoryAdapter(repository);
     }
 
     @Test
