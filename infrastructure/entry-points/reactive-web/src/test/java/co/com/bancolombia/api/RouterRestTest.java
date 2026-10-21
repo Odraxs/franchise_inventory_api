@@ -33,7 +33,7 @@ class RouterRestTest {
     @Test
     void createFranchiseReturns201WithLocationAndBody() {
         UUID id = UUID.randomUUID();
-        when(createFranchiseUseCase.execute(argThat(franchise -> "Nequi".equals(franchise.getName()))))
+        when(createFranchiseUseCase.execute(argThat(franchise -> "Nequi".equals(franchise.name()))))
                 .thenReturn(Mono.just(Franchise.builder().id(id).name("Nequi").build()));
 
         postFranchise(Map.of("name", "Nequi"))
@@ -57,7 +57,7 @@ class RouterRestTest {
 
     @Test
     void createFranchiseSendsNullNameWhenBodyIsEmpty() {
-        when(createFranchiseUseCase.execute(argThat(franchise -> franchise.getName() == null)))
+        when(createFranchiseUseCase.execute(argThat(franchise -> franchise.name() == null)))
                 .thenReturn(Mono.error(new BusinessException(ErrorCode.INVALID_FRANCHISE_NAME)));
 
         webTestClient.post()

@@ -14,7 +14,7 @@ public class CreateFranchiseUseCase {
     private final FranchiseGateway franchiseGateway;
 
     public Mono<Franchise> execute(Franchise franchise) {
-        return Mono.justOrEmpty(franchise.getName())
+        return Mono.justOrEmpty(franchise.name())
                 .map(String::strip)
                 .filter(name -> !name.isEmpty() && name.length() <= MAX_NAME_LENGTH)
                 .switchIfEmpty(Mono.error(() -> new BusinessException(ErrorCode.INVALID_FRANCHISE_NAME)))

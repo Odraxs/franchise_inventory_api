@@ -36,7 +36,7 @@ class FranchiseRepositoryAdapterTest {
         when(repository.save(new FranchiseData(null, "Nequi"))).thenReturn(Mono.just(new FranchiseData(id, "Nequi")));
 
         StepVerifier.create(adapter.save(Franchise.builder().name("Nequi").build()))
-                .expectNextMatches(franchise -> id.equals(franchise.getId()) && "Nequi".equals(franchise.getName()))
+                .expectNextMatches(franchise -> id.equals(franchise.id()) && "Nequi".equals(franchise.name()))
                 .verifyComplete();
     }
 

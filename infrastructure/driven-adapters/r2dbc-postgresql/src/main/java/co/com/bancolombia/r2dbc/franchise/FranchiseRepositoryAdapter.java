@@ -25,7 +25,7 @@ public class FranchiseRepositoryAdapter implements FranchiseGateway {
     }
 
     private static FranchiseData toData(Franchise franchise) {
-        return new FranchiseData(franchise.getId(), franchise.getName());
+        return new FranchiseData(franchise.id(), franchise.name());
     }
 
     private static Franchise toEntity(FranchiseData data) {

@@ -32,8 +32,8 @@ public class Handler {
                 .map(request -> Franchise.builder().name(request.name()).build())
                 .flatMap(createFranchiseUseCase::execute)
                 .flatMap(franchise -> ServerResponse
-                        .created(UriComponentsBuilder.fromPath("/franchises/{id}").build(franchise.getId()))
-                        .bodyValue(new FranchiseResponse(franchise.getId(), franchise.getName())))
+                        .created(UriComponentsBuilder.fromPath("/franchises/{id}").build(franchise.id()))
+                        .bodyValue(new FranchiseResponse(franchise.id(), franchise.name())))
                 .onErrorResume(BusinessException.class, this::toErrorResponse);
     }
 

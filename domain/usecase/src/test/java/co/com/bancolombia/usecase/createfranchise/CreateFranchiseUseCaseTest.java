@@ -39,7 +39,7 @@ class CreateFranchiseUseCaseTest {
                 .thenAnswer(invocation -> Mono.just(((Franchise) invocation.getArgument(0)).toBuilder().id(id).build()));
 
         StepVerifier.create(useCase.execute(Franchise.builder().name("  Nequi Store  ").build()))
-                .expectNextMatches(saved -> id.equals(saved.getId()) && "Nequi Store".equals(saved.getName()))
+                .expectNextMatches(saved -> id.equals(saved.id()) && "Nequi Store".equals(saved.name()))
                 .verifyComplete();
     }
 
