@@ -1,10 +1,13 @@
 package co.com.bancolombia.api;
 
+import co.com.bancolombia.api.config.JacksonConfig;
 import co.com.bancolombia.model.exception.BusinessException;
 import co.com.bancolombia.model.exception.BusinessException.ErrorCode;
 import co.com.bancolombia.model.franchise.Franchise;
 import co.com.bancolombia.usecase.createfranchise.CreateFranchiseUseCase;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webflux.test.autoconfigure.WebFluxTest;
 import org.springframework.http.MediaType;
@@ -20,7 +23,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.when;
 
-@ContextConfiguration(classes = {RouterRest.class, Handler.class})
+@ContextConfiguration(classes = {RouterRest.class, Handler.class, JacksonConfig.class})
 @WebFluxTest
 class RouterRestTest {
 
@@ -56,15 +59,14 @@ class RouterRestTest {
     }
 
     @Test
-    void createFranchiseSendsNullNameWhenBodyIsEmpty() {
-        when(createFranchiseUseCase.execute(argThat(franchise -> franchise.name() == null)))
-                .thenReturn(Mono.error(new BusinessException(ErrorCode.INVALID_FRANCHISE_NAME)));
-
+    void createFranchiseReturns400InvalidRequestForEmptyBody() {
         webTestClient.post()
                 .uri("/franchises")
                 .contentType(MediaType.APPLICATION_JSON)
                 .exchange()
-                .expectStatus().isBadRequest();
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_REQUEST");
     }
 
     @Test
@@ -77,6 +79,45 @@ class RouterRestTest {
                 .expectBody()
                 .jsonPath("$.code").isEqualTo("DUPLICATE_FRANCHISE_NAME")
                 .jsonPath("$.message").isEqualTo("A franchise with this name already exists");
+    }
+
+    @Test
+    void notFoundErrorCodeReturns404() {
+        when(createFranchiseUseCase.execute(any(Franchise.class)))
+                .thenReturn(Mono.error(new BusinessException(ErrorCode.FRANCHISE_NOT_FOUND)));
+
+        postFranchise(Map.of("name", "Nequi"))
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("FRANCHISE_NOT_FOUND")
+                .jsonPath("$.message").isEqualTo("The franchise does not exist");
+    }
+
+    @Test
+    void createFranchiseReturns400InvalidRequestForMalformedJson() {
+        postRawFranchise("{\"name\": ")
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_REQUEST")
+                .jsonPath("$.message").isNotEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"123", "1.5", "true", "{}", "[]"})
+    void createFranchiseReturns400InvalidRequestForNonStringName(String name) {
+        postRawFranchise("{\"name\": " + name + "}")
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_REQUEST");
+    }
+
+    private WebTestClient.ResponseSpec postRawFranchise(String body) {
+        return webTestClient.post()
+                .uri("/franchises")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .bodyValue(body)
+                .exchange();
     }
 
     private WebTestClient.ResponseSpec postFranchise(Map<String, String> body) {
