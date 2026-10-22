@@ -197,6 +197,20 @@ class ProductRepositoryAdapterTest {
                 .verifyComplete();
     }
 
+    @Test
+    void stalledTopStockReadFailsWithDatabaseUnavailable() {
+        UUID franchiseId = UUID.randomUUID();
+        when(repository.findTopStockByFranchiseId(franchiseId)).thenReturn(Flux.never());
+
+        StepVerifier.withVirtualTime(() -> adapter.findTopStockByFranchiseId(franchiseId))
+                .expectSubscription()
+                .thenAwait(DatabaseResilienceFixture.TIMEOUT.multipliedBy(DatabaseResilienceFixture.MAX_ATTEMPTS)
+                        .plus(ALL_BACKOFFS))
+                .expectErrorMatches(error -> error instanceof TechnicalException exception
+                        && exception.getErrorCode() == TechnicalException.ErrorCode.DATABASE_UNAVAILABLE)
+                .verify();
+    }
+
     private static Product product() {
         return Product.builder().branchId(BRANCH_ID).name("Cola").stock(5).build();
     }

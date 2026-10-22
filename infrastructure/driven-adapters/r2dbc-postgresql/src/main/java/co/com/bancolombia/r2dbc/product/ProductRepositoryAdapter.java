@@ -44,7 +44,7 @@ public class ProductRepositoryAdapter implements ProductGateway {
 
     @Override
     public Flux<BranchTopStock> findTopStockByFranchiseId(UUID franchiseId) {
-        return repository.findTopStockByFranchiseId(franchiseId).map(ProductRepositoryAdapter::toEntity);
+        return resilience.idempotent(repository.findTopStockByFranchiseId(franchiseId)).map(ProductRepositoryAdapter::toEntity);
     }
 
     private static ProductData toData(Product product) {
