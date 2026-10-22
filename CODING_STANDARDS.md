@@ -24,7 +24,7 @@ Infrastructure modules never depend on `app-service` or on each other.
 - Business rules live only in the domain. Infrastructure translates and delegates.
 - Keep the domain plain Java: no Spring, R2DBC, Jackson or web types.
 - Name domain classes and fields after the business (`Franchise`, `Branch`, `Product`). Technology words (`Dto`, `Request`, `Response`, `Postgres`, `R2dbc`, `Http`, `Kafka`, …) belong in infrastructure.
-- Build domain entities with the Lombok Builder: `@Builder(toBuilder = true)` with immutable fields. Produce a changed copy with `toBuilder()`.
+- Write domain entities as Java `record`s with the Lombok Builder: `@Builder(toBuilder = true)`. Create instances with the builder, and produce a changed copy with `toBuilder()`.
 - Define every outside need as a gateway interface (port) in `model/<name>/gateways/`, returning `Mono`/`Flux`.
 - Express business failures as domain exceptions in `model` (for example, a business exception with an error-code enum).
 - Use cases receive gateways through the constructor and keep only `final` fields. Leave Spring annotations off: `UseCasesConfig` registers every class in `co.com.bancolombia.usecase` whose name ends with `UseCase`.
@@ -33,7 +33,6 @@ Infrastructure modules never depend on `app-service` or on each other.
 
 - An adapter implements a model gateway and owns its persistence types (`*Data` entity, Spring Data reactive repository).
 - Map persistence types to domain models inside the adapter. Domain models stay free of persistence annotations.
-- R2DBC adapters extend the helper `r2dbc/helper/ReactiveAdapterOperations`.
 - Wrap calls that leave the process with the resilience operators in section 3.
 
 ### 1.4 Entry points
@@ -75,7 +74,7 @@ Use the Resilience4j Reactor operators (`transformDeferred(CircuitBreakerOperato
 - Use Java `record`s for DTOs and other transfer objects.
 - Use `jakarta.*`; `javax.*` is not allowed.
 - Inject by constructor in every bean: `@RequiredArgsConstructor` + `final` fields.
-- Choose Lombok annotations on purpose: `@Builder(toBuilder = true)` for domain entities, `@Value` for immutable value classes. Use `@Data` only where mutability is required.
+- Choose Lombok annotations on purpose: `@Builder(toBuilder = true)` on domain entity records, `@Value` for immutable value classes that cannot be records. Use `@Data` only where mutability is required.
 - Write all code in English: classes, methods, variables and technical comments.
 
 ## 5. Test code
