@@ -28,10 +28,13 @@ public class FranchiseRepositoryAdapter implements FranchiseGateway {
                         error -> new BusinessException(ErrorCode.DUPLICATE_FRANCHISE_NAME, error));
     }
 
-    /** uq_franchise_name rejects a name another Franchise has (ignoring case); a row never conflicts with itself. */
+    /**
+     * uq_franchise_name rejects a name another Franchise has (ignoring case); a row never conflicts with itself.
+     * Setting the same name again changes nothing, so a rename is retried like a read.
+     */
     @Override
     public Mono<Franchise> rename(UUID id, String name) {
-        return repository.rename(id, name)
+        return resilience.idempotent(repository.rename(id, name))
                 .map(FranchiseRepositoryAdapter::toEntity)
                 .onErrorMap(DuplicateKeyException.class,
                         error -> new BusinessException(ErrorCode.DUPLICATE_FRANCHISE_NAME, error));
