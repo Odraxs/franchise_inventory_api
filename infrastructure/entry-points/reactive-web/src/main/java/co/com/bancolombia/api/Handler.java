@@ -25,6 +25,10 @@ import java.util.UUID;
 @Component
 @RequiredArgsConstructor
 public class Handler {
+    private static final String INVALID_PREFIX = "INVALID_";
+    private static final String NOT_FOUND_SUFFIX = "_NOT_FOUND";
+    private static final String DUPLICATE_PREFIX = "DUPLICATE_";
+
     private final CreateFranchiseUseCase createFranchiseUseCase;
     private final AddBranchUseCase addBranchUseCase;
 
@@ -36,13 +40,13 @@ public class Handler {
                 .map(request -> Franchise.builder().name(request.name()).build())
                 .flatMap(createFranchiseUseCase::execute)
                 .flatMap(franchise -> ServerResponse
-                        .created(UriComponentsBuilder.fromPath("/franchises/{id}").build(franchise.id()))
+                        .created(UriComponentsBuilder.fromPath(ApiPaths.FRANCHISE).build(franchise.id()))
                         .bodyValue(new FranchiseResponse(franchise.id(), franchise.name())))
                 .onErrorResume(BusinessException.class, this::toErrorResponse);
     }
 
     public Mono<ServerResponse> addBranch(ServerRequest serverRequest) {
-        return parseId(serverRequest.pathVariable("franchiseId"))
+        return parseId(serverRequest.pathVariable(ApiPaths.FRANCHISE_ID))
                 .flatMap(franchiseId -> serverRequest.bodyToMono(CreateBranchRequest.class)
                         .onErrorMap(ServerWebInputException.class,
                                 error -> new BusinessException(ErrorCode.INVALID_REQUEST, error))
@@ -50,7 +54,7 @@ public class Handler {
                         .map(request -> Branch.builder().franchiseId(franchiseId).name(request.name()).build()))
                 .flatMap(addBranchUseCase::execute)
                 .flatMap(branch -> ServerResponse
-                        .created(UriComponentsBuilder.fromPath("/franchises/{franchiseId}/branches/{id}")
+                        .created(UriComponentsBuilder.fromPath(ApiPaths.BRANCH)
                                 .build(branch.franchiseId(), branch.id()))
                         .bodyValue(new BranchResponse(branch.id(), branch.name())))
                 .onErrorResume(BusinessException.class, this::toErrorResponse);
@@ -71,13 +75,13 @@ public class Handler {
     /** The code name sets the status: invalid values 400, not found 404, duplicates 409, others 422. */
     private static HttpStatus statusOf(ErrorCode errorCode) {
         String name = errorCode.name();
-        if (name.startsWith("INVALID_")) {
+        if (name.startsWith(INVALID_PREFIX)) {
             return HttpStatus.BAD_REQUEST;
         }
-        if (name.endsWith("_NOT_FOUND")) {
+        if (name.endsWith(NOT_FOUND_SUFFIX)) {
             return HttpStatus.NOT_FOUND;
         }
-        if (name.startsWith("DUPLICATE_")) {
+        if (name.startsWith(DUPLICATE_PREFIX)) {
             return HttpStatus.CONFLICT;
         }
         return HttpStatus.UNPROCESSABLE_CONTENT;
