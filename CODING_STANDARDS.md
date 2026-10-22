@@ -32,7 +32,7 @@ Infrastructure modules never depend on `app-service` or on each other.
 ### 1.3 Driven adapters
 
 - An adapter implements a model gateway and owns its persistence types (`*Data` entity, Spring Data reactive repository).
-- Map persistence types to domain models inside the adapter. Domain models stay free of persistence annotations.
+- Map persistence types to domain models inside the adapter.
 - Wrap calls that leave the process with the resilience operators in section 3.
 
 ### 1.4 Entry points
