@@ -9,7 +9,9 @@ public class BusinessException extends RuntimeException {
         INVALID_REQUEST("The request is malformed or has a field of the wrong type"),
         INVALID_FRANCHISE_NAME("The franchise name must not be blank and must have at most 100 characters"),
         DUPLICATE_FRANCHISE_NAME("A franchise with this name already exists"),
-        FRANCHISE_NOT_FOUND("The franchise does not exist");
+        FRANCHISE_NOT_FOUND("The franchise does not exist"),
+        INVALID_BRANCH_NAME("The branch name must not be blank and must have at most 100 characters"),
+        DUPLICATE_BRANCH_NAME("A branch with this name already exists in the franchise");
 
         private final String message;
 
