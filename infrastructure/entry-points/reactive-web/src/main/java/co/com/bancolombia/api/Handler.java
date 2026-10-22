@@ -55,7 +55,7 @@ public class Handler {
                 .flatMap(createFranchiseUseCase::execute)
                 .flatMap(franchise -> ServerResponse
                         .created(UriComponentsBuilder.fromPath(ApiPaths.FRANCHISE).build(franchise.id()))
-                        .bodyValue(new FranchiseResponse(franchise.id(), franchise.name())))
+                        .bodyValue(FranchiseResponse.builder().id(franchise.id()).name(franchise.name()).build()))
                 .transform(this::handleDomainErrors);
     }
 
@@ -70,7 +70,7 @@ public class Handler {
                 .flatMap(branch -> ServerResponse
                         .created(UriComponentsBuilder.fromPath(ApiPaths.BRANCH)
                                 .build(branch.franchiseId(), branch.id()))
-                        .bodyValue(new BranchResponse(branch.id(), branch.name())))
+                        .bodyValue(BranchResponse.builder().id(branch.id()).name(branch.name()).build()))
                 .transform(this::handleDomainErrors);
     }
 
@@ -88,7 +88,8 @@ public class Handler {
                         .created(UriComponentsBuilder.fromPath(ApiPaths.PRODUCT)
                                 .build(serverRequest.pathVariable(ApiPaths.FRANCHISE_ID), product.branchId(),
                                         product.id()))
-                        .bodyValue(new ProductResponse(product.id(), product.name(), product.stock())))
+                        .bodyValue(ProductResponse.builder().id(product.id()).name(product.name())
+                                .stock(product.stock()).build()))
                 .transform(this::handleDomainErrors);
     }
 
@@ -112,8 +113,9 @@ public class Handler {
                         .flatMap(request -> updateProductStockUseCase.execute(ids.getT1(), ids.getT2(), ids.getT3(),
                                 request.stock())))
                 .flatMap(product -> ServerResponse.ok()
-                        .bodyValue(new ProductResponse(product.id(), product.name(), product.stock())))
-                .onErrorResume(BusinessException.class, this::toErrorResponse);
+                        .bodyValue(ProductResponse.builder().id(product.id()).name(product.name())
+                                .stock(product.stock()).build()))
+                .transform(this::handleDomainErrors);
     }
 
     private static Mono<UUID> parseId(String value) {
@@ -137,7 +139,8 @@ public class Handler {
     private Mono<ServerResponse> toErrorResponse(DomainException exception) {
         return ServerResponse
                 .status(statusOf(exception))
-                .bodyValue(new ErrorResponse(exception.getCode(), exception.getMessage()));
+                .bodyValue(ErrorResponse.builder().code(exception.getCode())
+                        .message(exception.getMessage()).build());
     }
 
     /** A technical failure is always 503, whatever its code name; a business failure keeps the code-name rules. */
