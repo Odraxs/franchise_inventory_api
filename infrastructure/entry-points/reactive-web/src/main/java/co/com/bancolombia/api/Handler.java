@@ -15,6 +15,7 @@ import co.com.bancolombia.model.product.Product;
 import co.com.bancolombia.usecase.addbranch.AddBranchUseCase;
 import co.com.bancolombia.usecase.addproduct.AddProductUseCase;
 import co.com.bancolombia.usecase.createfranchise.CreateFranchiseUseCase;
+import co.com.bancolombia.usecase.deleteproduct.DeleteProductUseCase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -36,6 +37,7 @@ public class Handler {
     private final CreateFranchiseUseCase createFranchiseUseCase;
     private final AddBranchUseCase addBranchUseCase;
     private final AddProductUseCase addProductUseCase;
+    private final DeleteProductUseCase deleteProductUseCase;
 
     public Mono<ServerResponse> createFranchise(ServerRequest serverRequest) {
         return serverRequest.bodyToMono(CreateFranchiseRequest.class)
@@ -80,6 +82,15 @@ public class Handler {
                                 .build(serverRequest.pathVariable(ApiPaths.FRANCHISE_ID), product.branchId(),
                                         product.id()))
                         .bodyValue(new ProductResponse(product.id(), product.name(), product.stock())))
+                .onErrorResume(BusinessException.class, this::toErrorResponse);
+    }
+
+    public Mono<ServerResponse> deleteProduct(ServerRequest serverRequest) {
+        return Mono.zip(parseId(serverRequest.pathVariable(ApiPaths.FRANCHISE_ID)),
+                        parseId(serverRequest.pathVariable(ApiPaths.BRANCH_ID)),
+                        parseId(serverRequest.pathVariable(ApiPaths.ID)))
+                .flatMap(ids -> deleteProductUseCase.execute(ids.getT1(), ids.getT2(), ids.getT3()))
+                .then(Mono.defer(() -> ServerResponse.noContent().build()))
                 .onErrorResume(BusinessException.class, this::toErrorResponse);
     }
 

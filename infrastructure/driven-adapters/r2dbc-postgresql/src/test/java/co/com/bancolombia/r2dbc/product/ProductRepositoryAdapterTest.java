@@ -65,6 +65,22 @@ class ProductRepositoryAdapterTest {
                 .verify();
     }
 
+    @Test
+    void deleteEmitsTrueWhenTheActiveProductWasMarked() {
+        UUID id = UUID.randomUUID();
+        when(repository.softDelete(id, BRANCH_ID)).thenReturn(Mono.just(1));
+
+        StepVerifier.create(adapter.delete(id, BRANCH_ID)).expectNext(true).verifyComplete();
+    }
+
+    @Test
+    void deleteEmitsFalseWhenNoActiveProductMatches() {
+        UUID id = UUID.randomUUID();
+        when(repository.softDelete(id, BRANCH_ID)).thenReturn(Mono.just(0));
+
+        StepVerifier.create(adapter.delete(id, BRANCH_ID)).expectNext(false).verifyComplete();
+    }
+
     private static Product product() {
         return Product.builder().branchId(BRANCH_ID).name("Cola").stock(5).build();
     }
