@@ -442,6 +442,19 @@ class RouterRestTest {
                 .jsonPath("$.stock").isEqualTo(0);
     }
 
+    @Test
+    void updateProductStockIgnoresUnknownFields() {
+        UUID id = UUID.randomUUID();
+        when(updateProductStockUseCase.execute(any(UUID.class), any(UUID.class), eq(id), eq(3)))
+                .thenReturn(Mono.just(Product.builder().id(id).branchId(id).name("Cola").stock(3).build()));
+
+        patchStock(UUID.randomUUID().toString(), UUID.randomUUID().toString(), id.toString(),
+                "{\"stock\": 3, \"extra\": 1}")
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.stock").isEqualTo(3);
+    }
+
     @ParameterizedTest
     @CsvSource({
             "INVALID_STOCK, 400",
@@ -495,7 +508,7 @@ class RouterRestTest {
         patchStock(id, id, id, "{\"stock\": ").expectStatus().isBadRequest()
                 .expectBody().jsonPath("$.code").isEqualTo("INVALID_REQUEST");
         webTestClient.patch()
-                .uri("/franchises/{franchiseId}/branches/{branchId}/products/{id}/stock", id, id, id)
+                .uri(ApiPaths.PRODUCT_STOCK, id, id, id)
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody()
@@ -505,7 +518,7 @@ class RouterRestTest {
 
     private WebTestClient.ResponseSpec patchStock(String franchiseId, String branchId, String id, Object body) {
         return webTestClient.patch()
-                .uri("/franchises/{franchiseId}/branches/{branchId}/products/{id}/stock", franchiseId, branchId, id)
+                .uri(ApiPaths.PRODUCT_STOCK, franchiseId, branchId, id)
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON)
                 .bodyValue(body)
