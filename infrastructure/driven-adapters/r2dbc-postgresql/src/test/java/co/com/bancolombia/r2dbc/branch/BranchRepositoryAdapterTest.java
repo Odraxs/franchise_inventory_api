@@ -56,6 +56,16 @@ class BranchRepositoryAdapterTest {
     }
 
     @Test
+    void existsByIdAndFranchiseIdDelegatesToTheRepository() {
+        UUID id = UUID.randomUUID();
+        when(repository.existsByIdAndFranchiseId(id, FRANCHISE_ID)).thenReturn(Mono.just(true));
+
+        StepVerifier.create(adapter.existsByIdAndFranchiseId(id, FRANCHISE_ID))
+                .expectNext(true)
+                .verifyComplete();
+    }
+
+    @Test
     void propagatesOtherErrorsUnchanged() {
         when(repository.save(new BranchData(null, FRANCHISE_ID, "Centro")))
                 .thenReturn(Mono.error(new DataIntegrityViolationException("ck_branch_name_not_blank")));

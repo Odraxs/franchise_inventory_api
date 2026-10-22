@@ -9,6 +9,8 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Mono;
 
+import java.util.UUID;
+
 @Repository
 @RequiredArgsConstructor
 public class BranchRepositoryAdapter implements BranchGateway {
@@ -22,6 +24,11 @@ public class BranchRepositoryAdapter implements BranchGateway {
                 .map(BranchRepositoryAdapter::toEntity)
                 .onErrorMap(DuplicateKeyException.class,
                         error -> new BusinessException(ErrorCode.DUPLICATE_BRANCH_NAME, error));
+    }
+
+    @Override
+    public Mono<Boolean> existsByIdAndFranchiseId(UUID id, UUID franchiseId) {
+        return repository.existsByIdAndFranchiseId(id, franchiseId);
     }
 
     private static BranchData toData(Branch branch) {
