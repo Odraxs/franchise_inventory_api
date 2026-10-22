@@ -25,11 +25,12 @@ public class ProductRepositoryAdapter implements ProductGateway {
     }
 
     private static ProductData toData(Product product) {
-        return new ProductData(product.id(), product.branchId(), product.name(), Math.toIntExact(product.stock()));
+        return ProductData.builder().id(product.id()).branchId(product.branchId()).name(product.name())
+                .stock(product.stock()).build();
     }
 
     private static Product toEntity(ProductData data) {
         return Product.builder().id(data.id()).branchId(data.branchId()).name(data.name())
-                .stock(data.stock().longValue()).build();
+                .stock(data.stock()).build();
     }
 }
