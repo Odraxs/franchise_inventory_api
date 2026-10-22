@@ -19,4 +19,10 @@ public interface ProductGateway {
      * Emits false when the Branch has no active Product with that id, so a second delete changes nothing.
      */
     Mono<Boolean> delete(UUID id, UUID branchId);
+
+    /**
+     * Sets the stock of the active Product with this id in the Branch and emits the updated Product.
+     * Emits nothing when the Branch has no active Product with that id.
+     */
+    Mono<Product> updateStock(UUID id, UUID branchId, Integer stock);
 }

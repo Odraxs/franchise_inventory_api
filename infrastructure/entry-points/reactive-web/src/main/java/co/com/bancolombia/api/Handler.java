@@ -7,6 +7,7 @@ import co.com.bancolombia.api.dto.ErrorResponse;
 import co.com.bancolombia.api.dto.CreateProductRequest;
 import co.com.bancolombia.api.dto.FranchiseResponse;
 import co.com.bancolombia.api.dto.ProductResponse;
+import co.com.bancolombia.api.dto.UpdateStockRequest;
 import co.com.bancolombia.model.branch.Branch;
 import co.com.bancolombia.model.exception.BusinessException;
 import co.com.bancolombia.model.exception.BusinessException.ErrorCode;
@@ -18,6 +19,7 @@ import co.com.bancolombia.usecase.addbranch.AddBranchUseCase;
 import co.com.bancolombia.usecase.addproduct.AddProductUseCase;
 import co.com.bancolombia.usecase.createfranchise.CreateFranchiseUseCase;
 import co.com.bancolombia.usecase.deleteproduct.DeleteProductUseCase;
+import co.com.bancolombia.usecase.updateproductstock.UpdateProductStockUseCase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -42,6 +44,7 @@ public class Handler {
     private final AddBranchUseCase addBranchUseCase;
     private final AddProductUseCase addProductUseCase;
     private final DeleteProductUseCase deleteProductUseCase;
+    private final UpdateProductStockUseCase updateProductStockUseCase;
 
     public Mono<ServerResponse> createFranchise(ServerRequest serverRequest) {
         return serverRequest.bodyToMono(CreateFranchiseRequest.class)
@@ -96,6 +99,21 @@ public class Handler {
                 .flatMap(ids -> deleteProductUseCase.execute(ids.getT1(), ids.getT2(), ids.getT3()))
                 .then(Mono.defer(() -> ServerResponse.noContent().build()))
                 .transform(this::handleDomainErrors);
+    }
+
+    public Mono<ServerResponse> updateProductStock(ServerRequest serverRequest) {
+        return Mono.zip(parseId(serverRequest.pathVariable(ApiPaths.FRANCHISE_ID)),
+                        parseId(serverRequest.pathVariable(ApiPaths.BRANCH_ID)),
+                        parseId(serverRequest.pathVariable(ApiPaths.ID)))
+                .flatMap(ids -> serverRequest.bodyToMono(UpdateStockRequest.class)
+                        .onErrorMap(ServerWebInputException.class,
+                                error -> new BusinessException(ErrorCode.INVALID_REQUEST, error))
+                        .switchIfEmpty(Mono.error(() -> new BusinessException(ErrorCode.INVALID_REQUEST)))
+                        .flatMap(request -> updateProductStockUseCase.execute(ids.getT1(), ids.getT2(), ids.getT3(),
+                                request.stock())))
+                .flatMap(product -> ServerResponse.ok()
+                        .bodyValue(new ProductResponse(product.id(), product.name(), product.stock())))
+                .onErrorResume(BusinessException.class, this::toErrorResponse);
     }
 
     private static Mono<UUID> parseId(String value) {

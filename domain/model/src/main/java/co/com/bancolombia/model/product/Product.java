@@ -29,7 +29,8 @@ public record Product(UUID id, UUID branchId, String name, Integer stock) {
         return stripped;
     }
 
-    private static void validateStock(Integer stock) {
+    /** Fails with a Business Exception coded INVALID_STOCK when the stock is missing or negative. */
+    public static void validateStock(Integer stock) {
         if (stock == null || stock < 0) {
             throw new BusinessException(ErrorCode.INVALID_STOCK);
         }

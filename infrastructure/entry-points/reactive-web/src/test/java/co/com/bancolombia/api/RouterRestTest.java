@@ -11,6 +11,7 @@ import co.com.bancolombia.usecase.addproduct.AddProductUseCase;
 import co.com.bancolombia.usecase.addbranch.AddBranchUseCase;
 import co.com.bancolombia.usecase.createfranchise.CreateFranchiseUseCase;
 import co.com.bancolombia.usecase.deleteproduct.DeleteProductUseCase;
+import co.com.bancolombia.usecase.updateproductstock.UpdateProductStockUseCase;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -50,6 +51,9 @@ class RouterRestTest {
 
     @MockitoBean
     private DeleteProductUseCase deleteProductUseCase;
+
+    @MockitoBean
+    private UpdateProductStockUseCase updateProductStockUseCase;
 
     @Test
     void createFranchiseReturns201WithLocationAndBody() {
@@ -419,6 +423,92 @@ class RouterRestTest {
         return webTestClient.delete()
                 .uri("/franchises/{franchiseId}/branches/{branchId}/products/{id}", franchiseId, branchId, id)
                 .accept(MediaType.APPLICATION_JSON)
+                .exchange();
+    }
+
+    @Test
+    void updateProductStockReturns200WithTheUpdatedProduct() {
+        UUID franchiseId = UUID.randomUUID();
+        UUID branchId = UUID.randomUUID();
+        UUID id = UUID.randomUUID();
+        when(updateProductStockUseCase.execute(franchiseId, branchId, id, 0))
+                .thenReturn(Mono.just(Product.builder().id(id).branchId(branchId).name("Cola").stock(0).build()));
+
+        patchStock(franchiseId.toString(), branchId.toString(), id.toString(), "{\"stock\": 0}")
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.id").isEqualTo(id.toString())
+                .jsonPath("$.name").isEqualTo("Cola")
+                .jsonPath("$.stock").isEqualTo(0);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "INVALID_STOCK, 400",
+            "FRANCHISE_NOT_FOUND, 404",
+            "BRANCH_NOT_FOUND, 404",
+            "PRODUCT_NOT_FOUND, 404"
+    })
+    void updateProductStockMapsBusinessErrorsToStatusAndCode(ErrorCode errorCode, int status) {
+        when(updateProductStockUseCase.execute(any(UUID.class), any(UUID.class), any(UUID.class), any()))
+                .thenReturn(Mono.error(new BusinessException(errorCode)));
+
+        patchStock(UUID.randomUUID().toString(), UUID.randomUUID().toString(), UUID.randomUUID().toString(),
+                "{\"stock\": 1}")
+                .expectStatus().isEqualTo(status)
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(errorCode.name());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"stock\": null}", "{\"stock\": -1}"})
+    void updateProductStockReturns400InvalidStockFromTheUseCase(String body) {
+        when(updateProductStockUseCase.execute(any(UUID.class), any(UUID.class), any(UUID.class), any()))
+                .thenReturn(Mono.error(new BusinessException(ErrorCode.INVALID_STOCK)));
+
+        patchStock(UUID.randomUUID().toString(), UUID.randomUUID().toString(), UUID.randomUUID().toString(), body)
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_STOCK");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"1.5", "\"abc\"", "\"5\"", "true", "{}", "[]", "2147483648"})
+    void updateProductStockReturns400InvalidRequestForWrongStockType(String stock) {
+        patchStock(UUID.randomUUID().toString(), UUID.randomUUID().toString(), UUID.randomUUID().toString(),
+                "{\"stock\": " + stock + "}")
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_REQUEST");
+        verifyNoInteractions(updateProductStockUseCase);
+    }
+
+    @Test
+    void updateProductStockReturns400InvalidRequestForMalformedIdsJsonAndMissingBody() {
+        String id = UUID.randomUUID().toString();
+        patchStock("not-a-uuid", id, id, "{\"stock\": 1}").expectStatus().isBadRequest()
+                .expectBody().jsonPath("$.code").isEqualTo("INVALID_REQUEST");
+        patchStock(id, "not-a-uuid", id, "{\"stock\": 1}").expectStatus().isBadRequest()
+                .expectBody().jsonPath("$.code").isEqualTo("INVALID_REQUEST");
+        patchStock(id, id, "not-a-uuid", "{\"stock\": 1}").expectStatus().isBadRequest()
+                .expectBody().jsonPath("$.code").isEqualTo("INVALID_REQUEST");
+        patchStock(id, id, id, "{\"stock\": ").expectStatus().isBadRequest()
+                .expectBody().jsonPath("$.code").isEqualTo("INVALID_REQUEST");
+        webTestClient.patch()
+                .uri("/franchises/{franchiseId}/branches/{branchId}/products/{id}/stock", id, id, id)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_REQUEST");
+        verifyNoInteractions(updateProductStockUseCase);
+    }
+
+    private WebTestClient.ResponseSpec patchStock(String franchiseId, String branchId, String id, Object body) {
+        return webTestClient.patch()
+                .uri("/franchises/{franchiseId}/branches/{branchId}/products/{id}/stock", franchiseId, branchId, id)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .bodyValue(body)
                 .exchange();
     }
 

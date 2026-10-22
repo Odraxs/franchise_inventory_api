@@ -34,6 +34,11 @@ public class ProductRepositoryAdapter implements ProductGateway {
         return resilience.idempotent(repository.softDelete(id, branchId)).map(rows -> rows > 0);
     }
 
+    @Override
+    public Mono<Product> updateStock(UUID id, UUID branchId, Integer stock) {
+        return resilience.idempotent(repository.updateStock(id, branchId, stock)).map(ProductRepositoryAdapter::toEntity);
+    }
+
     private static ProductData toData(Product product) {
         return ProductData.builder().id(product.id()).branchId(product.branchId()).name(product.name())
                 .stock(product.stock()).build();
