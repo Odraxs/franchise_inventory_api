@@ -14,6 +14,14 @@ public interface BranchGateway {
      */
     Mono<Branch> save(Branch branch);
 
+    /**
+     * Sets the name of the Branch with this id in the Franchise and emits the updated Branch, or empty when no Branch
+     * of that Franchise matches.
+     * Fails with a Business Exception coded DUPLICATE_BRANCH_NAME when another Branch of the Franchise has the name
+     * (ignoring case).
+     */
+    Mono<Branch> rename(UUID id, UUID franchiseId, String name);
+
     /** Emits true when a Branch with this id exists in the Franchise, false otherwise. */
     Mono<Boolean> existsByIdAndFranchiseId(UUID id, UUID franchiseId);
 }

@@ -28,6 +28,18 @@ public class BranchRepositoryAdapter implements BranchGateway {
                         error -> new BusinessException(ErrorCode.DUPLICATE_BRANCH_NAME, error));
     }
 
+    /**
+     * uq_branch_franchise_name rejects a name another Branch of the franchise has (ignoring case); a row never
+     * conflicts with itself. Setting the same name again changes nothing, so a rename is retried like a read.
+     */
+    @Override
+    public Mono<Branch> rename(UUID id, UUID franchiseId, String name) {
+        return resilience.idempotent(repository.rename(id, franchiseId, name))
+                .map(BranchRepositoryAdapter::toEntity)
+                .onErrorMap(DuplicateKeyException.class,
+                        error -> new BusinessException(ErrorCode.DUPLICATE_BRANCH_NAME, error));
+    }
+
     @Override
     public Mono<Boolean> existsByIdAndFranchiseId(UUID id, UUID franchiseId) {
         return resilience.idempotent(repository.existsByIdAndFranchiseId(id, franchiseId));

@@ -18,6 +18,7 @@ public class RouterRest {
         return route(POST(ApiPaths.FRANCHISES), handler::createFranchise)
                 .andRoute(PATCH(ApiPaths.FRANCHISE), handler::renameFranchise)
                 .andRoute(POST(ApiPaths.BRANCHES), handler::addBranch)
+                .andRoute(PATCH(ApiPaths.BRANCH), handler::renameBranch)
                 .andRoute(POST(ApiPaths.PRODUCTS), handler::addProduct)
                 .andRoute(DELETE(ApiPaths.PRODUCT), handler::deleteProduct)
                 .andRoute(PATCH(ApiPaths.PRODUCT_STOCK), handler::updateProductStock)

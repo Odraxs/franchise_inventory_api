@@ -66,6 +66,68 @@ class BranchRepositoryAdapterTest {
     }
 
     @Test
+    void renameEmitsTheUpdatedBranch() {
+        UUID id = UUID.randomUUID();
+        when(repository.rename(id, FRANCHISE_ID, "Centro")).thenReturn(Mono.just(new BranchData(id, FRANCHISE_ID, "Centro")));
+
+        StepVerifier.create(adapter.rename(id, FRANCHISE_ID, "Centro"))
+                .expectNextMatches(branch -> id.equals(branch.id()) && FRANCHISE_ID.equals(branch.franchiseId())
+                        && "Centro".equals(branch.name()))
+                .verifyComplete();
+    }
+
+    @Test
+    void renameEmitsEmptyWhenNoRowMatches() {
+        UUID id = UUID.randomUUID();
+        when(repository.rename(id, FRANCHISE_ID, "Centro")).thenReturn(Mono.empty());
+
+        StepVerifier.create(adapter.rename(id, FRANCHISE_ID, "Centro")).verifyComplete();
+    }
+
+    @Test
+    void renameMapsDuplicateKeyToDuplicateBranchName() {
+        UUID id = UUID.randomUUID();
+        when(repository.rename(id, FRANCHISE_ID, "Centro"))
+                .thenReturn(Mono.error(new DuplicateKeyException("uq_branch_franchise_name")));
+
+        StepVerifier.create(adapter.rename(id, FRANCHISE_ID, "Centro"))
+                .expectErrorMatches(error -> error instanceof BusinessException exception
+                        && exception.getErrorCode() == ErrorCode.DUPLICATE_BRANCH_NAME)
+                .verify();
+    }
+
+    @Test
+    void renameIsRetriedAfterATimeoutAndRecovers() {
+        UUID id = UUID.randomUUID();
+        AtomicInteger subscriptions = new AtomicInteger();
+        Iterator<Mono<BranchData>> answers = List.of(Mono.<BranchData>never(),
+                Mono.just(new BranchData(id, FRANCHISE_ID, "Centro"))).iterator();
+        when(repository.rename(id, FRANCHISE_ID, "Centro")).thenReturn(Mono.defer(answers::next)
+                .doOnSubscribe(subscription -> subscriptions.incrementAndGet()));
+
+        StepVerifier.withVirtualTime(() -> adapter.rename(id, FRANCHISE_ID, "Centro"))
+                .expectSubscription()
+                .thenAwait(DatabaseResilienceFixture.TIMEOUT)
+                .thenAwait(ALL_BACKOFFS)
+                .expectNextCount(1)
+                .verifyComplete();
+        assertThat(subscriptions).hasValue(2);
+    }
+
+    @Test
+    void renameDuplicateNameIsTriedOnceAndMapsToDuplicateBranchName() {
+        UUID id = UUID.randomUUID();
+        PublisherProbe<BranchData> duplicate = PublisherProbe.of(Mono.error(new DuplicateKeyException("uq_branch_franchise_name")));
+        when(repository.rename(id, FRANCHISE_ID, "Centro")).thenReturn(duplicate.mono());
+
+        StepVerifier.create(adapter.rename(id, FRANCHISE_ID, "Centro"))
+                .expectErrorMatches(error -> error instanceof BusinessException exception
+                        && exception.getErrorCode() == ErrorCode.DUPLICATE_BRANCH_NAME)
+                .verify();
+        assertThat(duplicate.subscribeCount()).isEqualTo(1);
+    }
+
+    @Test
     void existsByIdAndFranchiseIdDelegatesToTheRepository() {
         UUID id = UUID.randomUUID();
         when(repository.existsByIdAndFranchiseId(id, FRANCHISE_ID)).thenReturn(Mono.just(true));

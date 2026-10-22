@@ -9,6 +9,7 @@ import co.com.bancolombia.api.dto.CreateProductRequest;
 import co.com.bancolombia.api.dto.FranchiseResponse;
 import co.com.bancolombia.api.dto.ProductResponse;
 import co.com.bancolombia.api.dto.UpdateStockRequest;
+import co.com.bancolombia.api.dto.RenameBranchRequest;
 import co.com.bancolombia.api.dto.RenameFranchiseRequest;
 import co.com.bancolombia.api.dto.TopStockReportResponse;
 import co.com.bancolombia.model.branch.Branch;
@@ -25,6 +26,7 @@ import co.com.bancolombia.usecase.createfranchise.CreateFranchiseUseCase;
 import co.com.bancolombia.usecase.deleteproduct.DeleteProductUseCase;
 import co.com.bancolombia.usecase.updateproductstock.UpdateProductStockUseCase;
 import co.com.bancolombia.usecase.gettopstockreport.GetTopStockReportUseCase;
+import co.com.bancolombia.usecase.renamebranch.RenameBranchUseCase;
 import co.com.bancolombia.usecase.renamefranchise.RenameFranchiseUseCase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -55,6 +57,7 @@ public class Handler {
     private final UpdateProductStockUseCase updateProductStockUseCase;
     private final GetTopStockReportUseCase getTopStockReportUseCase;
     private final RenameFranchiseUseCase renameFranchiseUseCase;
+    private final RenameBranchUseCase renameBranchUseCase;
 
     public Mono<ServerResponse> createFranchise(ServerRequest serverRequest) {
         return readBody(serverRequest, CreateFranchiseRequest.class)
@@ -84,6 +87,18 @@ public class Handler {
                 .flatMap(branch -> ServerResponse
                         .created(UriComponentsBuilder.fromPath(ApiPaths.BRANCH)
                                 .build(branch.franchiseId(), branch.id()))
+                        .bodyValue(BranchResponse.builder().id(branch.id()).name(branch.name()).build()))
+                .transform(this::handleDomainErrors);
+    }
+
+    public Mono<ServerResponse> renameBranch(ServerRequest serverRequest) {
+        return Mono.zip(parseId(serverRequest.pathVariable(ApiPaths.FRANCHISE_ID)),
+                        parseId(serverRequest.pathVariable(ApiPaths.ID)))
+                .flatMap(ids -> readBody(serverRequest, RenameBranchRequest.class)
+                        .map(request -> Branch.builder().id(ids.getT2()).franchiseId(ids.getT1())
+                                .name(request.name()).build()))
+                .flatMap(renameBranchUseCase::execute)
+                .flatMap(branch -> ServerResponse.ok()
                         .bodyValue(BranchResponse.builder().id(branch.id()).name(branch.name()).build()))
                 .transform(this::handleDomainErrors);
     }

@@ -9,6 +9,7 @@ import co.com.bancolombia.usecase.createfranchise.CreateFranchiseUseCase;
 import co.com.bancolombia.usecase.deleteproduct.DeleteProductUseCase;
 import co.com.bancolombia.usecase.updateproductstock.UpdateProductStockUseCase;
 import co.com.bancolombia.usecase.gettopstockreport.GetTopStockReportUseCase;
+import co.com.bancolombia.usecase.renamebranch.RenameBranchUseCase;
 import co.com.bancolombia.usecase.renamefranchise.RenameFranchiseUseCase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,6 +55,9 @@ class ConfigTest {
 
     @MockitoBean
     private RenameFranchiseUseCase renameFranchiseUseCase;
+
+    @MockitoBean
+    private RenameBranchUseCase renameBranchUseCase;
 
     @Test
     void corsConfigurationShouldAllowOrigins() {
