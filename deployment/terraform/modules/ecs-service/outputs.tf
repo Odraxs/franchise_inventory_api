@@ -113,3 +113,20 @@ output "service_settings" {
     }
   ])
 }
+
+output "autoscaling" {
+  description = "Planned Service Auto Scaling target and CPU policy. Null until an image is published. Exposed so tests can assert them."
+  value = length(aws_appautoscaling_target.this) + length(aws_appautoscaling_policy.cpu) == 0 ? null : {
+    service_namespace      = one(aws_appautoscaling_target.this[*].service_namespace)
+    resource_id            = one(aws_appautoscaling_target.this[*].resource_id)
+    scalable_dimension     = one(aws_appautoscaling_target.this[*].scalable_dimension)
+    min_capacity           = one(aws_appautoscaling_target.this[*].min_capacity)
+    max_capacity           = one(aws_appautoscaling_target.this[*].max_capacity)
+    policy_type            = one(aws_appautoscaling_policy.cpu[*].policy_type)
+    target_value           = one(flatten(aws_appautoscaling_policy.cpu[*].target_tracking_scaling_policy_configuration[*].target_value))
+    predefined_metric_type = one(flatten(aws_appautoscaling_policy.cpu[*].target_tracking_scaling_policy_configuration[*].predefined_metric_specification[*].predefined_metric_type))
+    scale_out_cooldown     = one(flatten(aws_appautoscaling_policy.cpu[*].target_tracking_scaling_policy_configuration[*].scale_out_cooldown))
+    scale_in_cooldown      = one(flatten(aws_appautoscaling_policy.cpu[*].target_tracking_scaling_policy_configuration[*].scale_in_cooldown))
+    disable_scale_in       = one(flatten(aws_appautoscaling_policy.cpu[*].target_tracking_scaling_policy_configuration[*].disable_scale_in))
+  }
+}

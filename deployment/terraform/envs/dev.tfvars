@@ -32,6 +32,11 @@ ecs_capacity_provider    = "FARGATE_SPOT"
 ecs_desired_count        = 1
 ecs_log_retention_days   = 7
 
+# Service Auto Scaling on average CPU (target 75 percent): 1 to 2 tasks. The
+# max of 2 limits the cost of a load spike in dev.
+autoscaling_min_capacity = 1
+autoscaling_max_capacity = 2
+
 # Cost alarm: USD 20/month AWS Budget with email alerts at 50, 80 and 100 percent.
 # The email is never committed: export TF_VAR_budget_alert_email=<address> before plan/apply.
 enable_budget = true

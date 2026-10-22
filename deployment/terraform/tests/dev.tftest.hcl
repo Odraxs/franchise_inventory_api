@@ -160,6 +160,9 @@ variables {
   ecs_desired_count        = 1
   ecs_log_retention_days   = 7
 
+  autoscaling_min_capacity = 1
+  autoscaling_max_capacity = 2
+
   # Not in envs/dev.tfvars: the real address comes from TF_VAR_budget_alert_email.
   budget_alert_email = "test@example.com"
 }
@@ -340,6 +343,11 @@ run "dev_plan" {
       output.ecs_service_name == null
     )
     error_message = "Without image_tag, no task definition and no ECS service may be planned."
+  }
+
+  assert {
+    condition     = module.ecs_service.autoscaling == null
+    error_message = "Without image_tag, no scaling target and no scaling policy may be planned."
   }
 
   assert {
@@ -534,5 +542,40 @@ run "dev_service_plan" {
   assert {
     condition     = module.ecs_service.service_settings.enable_execute_command == false
     error_message = "ECS Exec must be off."
+  }
+
+  assert {
+    condition = (
+      module.ecs_service.autoscaling.service_namespace == "ecs" &&
+      module.ecs_service.autoscaling.resource_id == "service/franchise-inventory-dev/franchise-inventory-dev-api" &&
+      module.ecs_service.autoscaling.scalable_dimension == "ecs:service:DesiredCount"
+    )
+    error_message = "The dev scaling target must be the desired count of service franchise-inventory-dev-api."
+  }
+
+  assert {
+    condition = (
+      module.ecs_service.autoscaling.min_capacity == 1 &&
+      module.ecs_service.autoscaling.max_capacity == 2
+    )
+    error_message = "dev must scale between 1 and 2 tasks."
+  }
+
+  assert {
+    condition = (
+      module.ecs_service.autoscaling.policy_type == "TargetTrackingScaling" &&
+      module.ecs_service.autoscaling.predefined_metric_type == "ECSServiceAverageCPUUtilization" &&
+      module.ecs_service.autoscaling.target_value == 75
+    )
+    error_message = "The dev scaling policy must track the average service CPU at a target of 75 percent."
+  }
+
+  assert {
+    condition = (
+      module.ecs_service.autoscaling.scale_out_cooldown == 60 &&
+      module.ecs_service.autoscaling.scale_in_cooldown == 300 &&
+      module.ecs_service.autoscaling.disable_scale_in == false
+    )
+    error_message = "The dev scaling policy must scale out after 60 s, scale in after 300 s and keep scale-in on."
   }
 }

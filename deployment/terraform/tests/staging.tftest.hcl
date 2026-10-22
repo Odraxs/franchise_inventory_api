@@ -159,6 +159,9 @@ variables {
   ecs_capacity_provider    = "FARGATE_SPOT"
   ecs_desired_count        = 1
   ecs_log_retention_days   = 14
+
+  autoscaling_min_capacity = 1
+  autoscaling_max_capacity = 2
 }
 
 run "staging_plan" {
@@ -288,6 +291,11 @@ run "staging_plan" {
   }
 
   assert {
+    condition     = module.ecs_service.autoscaling == null
+    error_message = "Without image_tag, no scaling target and no scaling policy may be planned."
+  }
+
+  assert {
     condition     = module.ecs_service.log_retention_days == 14
     error_message = "staging must keep the container logs for 14 days."
   }
@@ -350,5 +358,40 @@ run "staging_service_plan" {
       { name = "AWS_REGION", value = "us-east-1" },
     ]) && !contains(keys(module.ecs_service.task_definition.containers[0]), "secrets")
     error_message = "The staging container must get only the three non-secret variables and no secrets block."
+  }
+
+  assert {
+    condition = (
+      module.ecs_service.autoscaling.service_namespace == "ecs" &&
+      module.ecs_service.autoscaling.resource_id == "service/franchise-inventory-staging/franchise-inventory-staging-api" &&
+      module.ecs_service.autoscaling.scalable_dimension == "ecs:service:DesiredCount"
+    )
+    error_message = "The staging scaling target must be the desired count of service franchise-inventory-staging-api."
+  }
+
+  assert {
+    condition = (
+      module.ecs_service.autoscaling.min_capacity == 1 &&
+      module.ecs_service.autoscaling.max_capacity == 2
+    )
+    error_message = "staging must scale between 1 and 2 tasks."
+  }
+
+  assert {
+    condition = (
+      module.ecs_service.autoscaling.policy_type == "TargetTrackingScaling" &&
+      module.ecs_service.autoscaling.predefined_metric_type == "ECSServiceAverageCPUUtilization" &&
+      module.ecs_service.autoscaling.target_value == 75
+    )
+    error_message = "The staging scaling policy must track the average service CPU at a target of 75 percent."
+  }
+
+  assert {
+    condition = (
+      module.ecs_service.autoscaling.scale_out_cooldown == 60 &&
+      module.ecs_service.autoscaling.scale_in_cooldown == 300 &&
+      module.ecs_service.autoscaling.disable_scale_in == false
+    )
+    error_message = "The staging scaling policy must scale out after 60 s, scale in after 300 s and keep scale-in on."
   }
 }

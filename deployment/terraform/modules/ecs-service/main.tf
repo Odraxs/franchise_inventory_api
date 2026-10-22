@@ -289,8 +289,10 @@ resource "aws_ecs_service" "this" {
   depends_on = [aws_ecs_cluster_capacity_providers.this]
 
   lifecycle {
-    # desired_count sets only the first count. Service Auto Scaling changes it
-    # later, and Terraform must not reset it on every apply.
+    # desired_count sets only the first count. Service Auto Scaling
+    # (autoscaling.tf) changes it later, and Terraform must not reset it on
+    # every apply. Without this line, each plan would set the count back to
+    # var.desired_count and undo a scale-out under load.
     ignore_changes = [desired_count]
   }
 }

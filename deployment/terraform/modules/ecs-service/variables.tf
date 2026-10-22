@@ -115,6 +115,61 @@ variable "desired_count" {
   }
 }
 
+variable "autoscaling_min_capacity" {
+  description = "Lowest number of tasks that Service Auto Scaling keeps running."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.autoscaling_min_capacity >= 1 && floor(var.autoscaling_min_capacity) == var.autoscaling_min_capacity
+    error_message = "The autoscaling_min_capacity must be a whole number of 1 or more."
+  }
+}
+
+variable "autoscaling_max_capacity" {
+  description = "Highest number of tasks that Service Auto Scaling may start. It must not be lower than autoscaling_min_capacity."
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = var.autoscaling_max_capacity >= var.autoscaling_min_capacity && floor(var.autoscaling_max_capacity) == var.autoscaling_max_capacity
+    error_message = "The autoscaling_max_capacity must be a whole number that is not lower than autoscaling_min_capacity."
+  }
+}
+
+variable "autoscaling_cpu_target" {
+  description = "Average CPU utilization of the service tasks, in percent, that the target tracking policy keeps."
+  type        = number
+  default     = 75
+
+  validation {
+    condition     = var.autoscaling_cpu_target >= 1 && var.autoscaling_cpu_target <= 100
+    error_message = "The autoscaling_cpu_target must be a percentage from 1 to 100."
+  }
+}
+
+variable "autoscaling_scale_out_cooldown_seconds" {
+  description = "Seconds after a scale-out before the next scale-out activity can start. Short, so the service reacts fast to load."
+  type        = number
+  default     = 60
+
+  validation {
+    condition     = var.autoscaling_scale_out_cooldown_seconds >= 0 && floor(var.autoscaling_scale_out_cooldown_seconds) == var.autoscaling_scale_out_cooldown_seconds
+    error_message = "The autoscaling_scale_out_cooldown_seconds must be a whole number of 0 or more."
+  }
+}
+
+variable "autoscaling_scale_in_cooldown_seconds" {
+  description = "Seconds after a scale-in before the next scale-in activity can start. Long, so short CPU drops do not remove tasks too early."
+  type        = number
+  default     = 300
+
+  validation {
+    condition     = var.autoscaling_scale_in_cooldown_seconds >= 0 && floor(var.autoscaling_scale_in_cooldown_seconds) == var.autoscaling_scale_in_cooldown_seconds
+    error_message = "The autoscaling_scale_in_cooldown_seconds must be a whole number of 0 or more."
+  }
+}
+
 variable "health_check_grace_period_seconds" {
   description = "Seconds that ECS ignores failed ALB health checks after a task starts. Flyway migrations run at startup, so it must cover them."
   type        = number

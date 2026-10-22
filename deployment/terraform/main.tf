@@ -99,4 +99,9 @@ module "ecs_service" {
   capacity_provider  = var.ecs_capacity_provider
   desired_count      = var.ecs_desired_count
   log_retention_days = var.ecs_log_retention_days
+
+  # Scale out quickly (60 s) and scale in slowly (300 s): module defaults.
+  autoscaling_min_capacity = var.autoscaling_min_capacity
+  autoscaling_max_capacity = var.autoscaling_max_capacity
+  autoscaling_cpu_target   = var.autoscaling_cpu_target
 }

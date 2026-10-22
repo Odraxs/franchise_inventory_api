@@ -39,5 +39,10 @@ ecs_capacity_provider    = "FARGATE_SPOT"
 ecs_desired_count        = 1
 ecs_log_retention_days   = 14
 
+# Service Auto Scaling on average CPU (target 75 percent): 1 to 2 tasks, like
+# dev. 2 tasks are enough to rehearse a scale-out; a higher max only adds cost.
+autoscaling_min_capacity = 1
+autoscaling_max_capacity = 2
+
 # Cost alarm: off. The budget protects the Free plan credits of the dev account only.
 enable_budget = false

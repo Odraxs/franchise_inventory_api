@@ -34,5 +34,10 @@ ecs_capacity_provider    = "FARGATE"
 ecs_desired_count        = 2
 ecs_log_retention_days   = 30
 
+# Service Auto Scaling on average CPU (target 75 percent): 2 to 4 tasks. The
+# min of 2 keeps one task in each AZ, so prod survives the loss of one task or AZ.
+autoscaling_min_capacity = 2
+autoscaling_max_capacity = 4
+
 # Cost alarm: off. The budget protects the Free plan credits of the dev account only.
 enable_budget = false

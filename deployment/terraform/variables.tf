@@ -181,9 +181,51 @@ variable "ecs_capacity_provider" {
 }
 
 variable "ecs_desired_count" {
-  description = "Number of ECS tasks when the service is created. Later changes are ignored, so Service Auto Scaling can own the count."
+  description = "Number of ECS tasks when the service is created. Later changes are ignored, so Service Auto Scaling can own the count. It must be within autoscaling_min_capacity and autoscaling_max_capacity, so the scaler does not change the count right after the first apply."
   type        = number
   default     = 1
+
+  validation {
+    condition = (
+      floor(var.ecs_desired_count) == var.ecs_desired_count &&
+      var.ecs_desired_count >= var.autoscaling_min_capacity &&
+      var.ecs_desired_count <= var.autoscaling_max_capacity
+    )
+    error_message = "The ecs_desired_count must be a whole number from autoscaling_min_capacity to autoscaling_max_capacity."
+  }
+}
+
+variable "autoscaling_min_capacity" {
+  description = "Lowest number of ECS tasks that Service Auto Scaling keeps running."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.autoscaling_min_capacity >= 1 && floor(var.autoscaling_min_capacity) == var.autoscaling_min_capacity
+    error_message = "The autoscaling_min_capacity must be a whole number of 1 or more."
+  }
+}
+
+variable "autoscaling_max_capacity" {
+  description = "Highest number of ECS tasks that Service Auto Scaling may start. It must not be lower than autoscaling_min_capacity."
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = var.autoscaling_max_capacity >= var.autoscaling_min_capacity && floor(var.autoscaling_max_capacity) == var.autoscaling_max_capacity
+    error_message = "The autoscaling_max_capacity must be a whole number that is not lower than autoscaling_min_capacity."
+  }
+}
+
+variable "autoscaling_cpu_target" {
+  description = "Average CPU utilization of the ECS tasks, in percent, that the target tracking policy keeps."
+  type        = number
+  default     = 75
+
+  validation {
+    condition     = var.autoscaling_cpu_target >= 1 && var.autoscaling_cpu_target <= 100
+    error_message = "The autoscaling_cpu_target must be a percentage from 1 to 100."
+  }
 }
 
 variable "ecs_log_retention_days" {

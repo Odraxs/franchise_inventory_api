@@ -201,6 +201,11 @@ run "no_image_tag_plans_no_task_definition_and_no_service" {
   }
 
   assert {
+    condition     = module.ecs_service.autoscaling == null
+    error_message = "Without image_tag, no scaling target and no scaling policy may be planned."
+  }
+
+  assert {
     condition     = output.ecs_cluster_name == "franchise-inventory-dev" && output.ecs_log_group_name == "/ecs/franchise-inventory-dev-api"
     error_message = "Without image_tag, the cluster and the log group must still be planned."
   }
@@ -266,4 +271,82 @@ run "unsupported_log_retention_is_rejected" {
   }
 
   expect_failures = [var.ecs_log_retention_days]
+}
+
+run "autoscaling_max_below_min_is_rejected" {
+  command = plan
+
+  variables {
+    autoscaling_min_capacity = 3
+    autoscaling_max_capacity = 2
+    ecs_desired_count        = 3
+  }
+
+  expect_failures = [var.autoscaling_max_capacity]
+}
+
+run "autoscaling_min_of_zero_is_rejected" {
+  command = plan
+
+  variables {
+    autoscaling_min_capacity = 0
+    ecs_desired_count        = 1
+  }
+
+  expect_failures = [var.autoscaling_min_capacity]
+}
+
+run "desired_count_below_autoscaling_min_is_rejected" {
+  command = plan
+
+  variables {
+    autoscaling_min_capacity = 2
+    autoscaling_max_capacity = 4
+    ecs_desired_count        = 1
+  }
+
+  expect_failures = [var.ecs_desired_count]
+}
+
+run "desired_count_above_autoscaling_max_is_rejected" {
+  command = plan
+
+  variables {
+    autoscaling_min_capacity = 1
+    autoscaling_max_capacity = 2
+    ecs_desired_count        = 3
+  }
+
+  expect_failures = [var.ecs_desired_count]
+}
+
+run "cpu_target_above_100_percent_is_rejected" {
+  command = plan
+
+  variables {
+    autoscaling_cpu_target = 101
+  }
+
+  expect_failures = [var.autoscaling_cpu_target]
+}
+
+run "autoscaling_follows_the_capacity_variables" {
+  command = plan
+
+  variables {
+    image_tag                = "0123456789ab"
+    autoscaling_min_capacity = 3
+    autoscaling_max_capacity = 6
+    ecs_desired_count        = 3
+    autoscaling_cpu_target   = 60
+  }
+
+  assert {
+    condition = (
+      module.ecs_service.autoscaling.min_capacity == 3 &&
+      module.ecs_service.autoscaling.max_capacity == 6 &&
+      module.ecs_service.autoscaling.target_value == 60
+    )
+    error_message = "The scaling target and policy must use autoscaling_min_capacity, autoscaling_max_capacity and autoscaling_cpu_target."
+  }
 }
