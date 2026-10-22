@@ -284,3 +284,8 @@ franchise-inventory-api.postman_collection.json  API requests for Postman, Insom
 
 - Architecture, layer rules and how to add code: [`AGENTS.md`](AGENTS.md)
 - Code standards (reactive, resilience, Java, tests): [`CODING_STANDARDS.md`](CODING_STANDARDS.md)
+
+## 7. Deployment (AWS)
+
+The API runs on AWS (ECS Fargate, ALB, RDS PostgreSQL 17 and Secrets Manager), built with modular Terraform.
+See [`deployment/terraform/README.md`](deployment/terraform/README.md) for the architecture, the key decisions and the step-by-step runbook.
