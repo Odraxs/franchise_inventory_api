@@ -3,6 +3,7 @@ package co.com.bancolombia.api.config;
 import co.com.bancolombia.api.Handler;
 import co.com.bancolombia.api.RouterRest;
 import co.com.bancolombia.model.franchise.Franchise;
+import co.com.bancolombia.usecase.addbranch.AddBranchUseCase;
 import co.com.bancolombia.usecase.createfranchise.CreateFranchiseUseCase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +31,9 @@ class ConfigTest {
 
     @MockitoBean
     private CreateFranchiseUseCase createFranchiseUseCase;
+
+    @MockitoBean
+    private AddBranchUseCase addBranchUseCase;
 
     @Test
     void corsConfigurationShouldAllowOrigins() {

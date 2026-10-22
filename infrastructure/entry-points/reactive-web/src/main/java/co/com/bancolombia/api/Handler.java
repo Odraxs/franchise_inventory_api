@@ -1,11 +1,15 @@
 package co.com.bancolombia.api;
 
+import co.com.bancolombia.api.dto.BranchResponse;
+import co.com.bancolombia.api.dto.CreateBranchRequest;
 import co.com.bancolombia.api.dto.CreateFranchiseRequest;
 import co.com.bancolombia.api.dto.ErrorResponse;
 import co.com.bancolombia.api.dto.FranchiseResponse;
+import co.com.bancolombia.model.branch.Branch;
 import co.com.bancolombia.model.exception.BusinessException;
 import co.com.bancolombia.model.exception.BusinessException.ErrorCode;
 import co.com.bancolombia.model.franchise.Franchise;
+import co.com.bancolombia.usecase.addbranch.AddBranchUseCase;
 import co.com.bancolombia.usecase.createfranchise.CreateFranchiseUseCase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -16,10 +20,13 @@ import org.springframework.web.server.ServerWebInputException;
 import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Mono;
 
+import java.util.UUID;
+
 @Component
 @RequiredArgsConstructor
 public class Handler {
     private final CreateFranchiseUseCase createFranchiseUseCase;
+    private final AddBranchUseCase addBranchUseCase;
 
     public Mono<ServerResponse> createFranchise(ServerRequest serverRequest) {
         return serverRequest.bodyToMono(CreateFranchiseRequest.class)
@@ -32,6 +39,27 @@ public class Handler {
                         .created(UriComponentsBuilder.fromPath("/franchises/{id}").build(franchise.id()))
                         .bodyValue(new FranchiseResponse(franchise.id(), franchise.name())))
                 .onErrorResume(BusinessException.class, this::toErrorResponse);
+    }
+
+    public Mono<ServerResponse> addBranch(ServerRequest serverRequest) {
+        return parseId(serverRequest.pathVariable("franchiseId"))
+                .flatMap(franchiseId -> serverRequest.bodyToMono(CreateBranchRequest.class)
+                        .onErrorMap(ServerWebInputException.class,
+                                error -> new BusinessException(ErrorCode.INVALID_REQUEST, error))
+                        .switchIfEmpty(Mono.error(() -> new BusinessException(ErrorCode.INVALID_REQUEST)))
+                        .map(request -> Branch.builder().franchiseId(franchiseId).name(request.name()).build()))
+                .flatMap(addBranchUseCase::execute)
+                .flatMap(branch -> ServerResponse
+                        .created(UriComponentsBuilder.fromPath("/franchises/{franchiseId}/branches/{id}")
+                                .build(branch.franchiseId(), branch.id()))
+                        .bodyValue(new BranchResponse(branch.id(), branch.name())))
+                .onErrorResume(BusinessException.class, this::toErrorResponse);
+    }
+
+    private static Mono<UUID> parseId(String value) {
+        return Mono.fromCallable(() -> UUID.fromString(value))
+                .onErrorMap(IllegalArgumentException.class,
+                        error -> new BusinessException(ErrorCode.INVALID_REQUEST, error));
     }
 
     private Mono<ServerResponse> toErrorResponse(BusinessException exception) {
