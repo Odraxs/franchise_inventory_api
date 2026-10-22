@@ -9,6 +9,8 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Mono;
 
+import java.util.UUID;
+
 @Repository
 @RequiredArgsConstructor
 public class ProductRepositoryAdapter implements ProductGateway {
@@ -22,6 +24,12 @@ public class ProductRepositoryAdapter implements ProductGateway {
                 .map(ProductRepositoryAdapter::toEntity)
                 .onErrorMap(DuplicateKeyException.class,
                         error -> new BusinessException(ErrorCode.DUPLICATE_PRODUCT_NAME, error));
+    }
+
+    /** Only an active Product of the branch is marked, so a repeated delete changes no row. */
+    @Override
+    public Mono<Boolean> delete(UUID id, UUID branchId) {
+        return repository.softDelete(id, branchId).map(rows -> rows > 0);
     }
 
     private static ProductData toData(Product product) {

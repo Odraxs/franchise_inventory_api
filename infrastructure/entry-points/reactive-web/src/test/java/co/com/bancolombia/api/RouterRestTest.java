@@ -9,6 +9,7 @@ import co.com.bancolombia.model.product.Product;
 import co.com.bancolombia.usecase.addproduct.AddProductUseCase;
 import co.com.bancolombia.usecase.addbranch.AddBranchUseCase;
 import co.com.bancolombia.usecase.createfranchise.CreateFranchiseUseCase;
+import co.com.bancolombia.usecase.deleteproduct.DeleteProductUseCase;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -45,6 +46,9 @@ class RouterRestTest {
 
     @MockitoBean
     private AddProductUseCase addProductUseCase;
+
+    @MockitoBean
+    private DeleteProductUseCase deleteProductUseCase;
 
     @Test
     void createFranchiseReturns201WithLocationAndBody() {
@@ -322,6 +326,54 @@ class RouterRestTest {
                 .expectStatus().isBadRequest()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo("INVALID_REQUEST");
+    }
+
+    @Test
+    void deleteProductReturns204WithoutBody() {
+        UUID franchiseId = UUID.randomUUID();
+        UUID branchId = UUID.randomUUID();
+        UUID id = UUID.randomUUID();
+        when(deleteProductUseCase.execute(franchiseId, branchId, id)).thenReturn(Mono.empty());
+
+        deleteProduct(franchiseId.toString(), branchId.toString(), id.toString())
+                .expectStatus().isNoContent()
+                .expectBody().isEmpty();
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "FRANCHISE_NOT_FOUND, 404",
+            "BRANCH_NOT_FOUND, 404",
+            "PRODUCT_NOT_FOUND, 404"
+    })
+    void deleteProductMapsBusinessErrorsToStatusAndCode(ErrorCode errorCode, int status) {
+        when(deleteProductUseCase.execute(any(UUID.class), any(UUID.class), any(UUID.class)))
+                .thenReturn(Mono.error(new BusinessException(errorCode)));
+
+        deleteProduct(UUID.randomUUID().toString(), UUID.randomUUID().toString(), UUID.randomUUID().toString())
+                .expectStatus().isEqualTo(status)
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(errorCode.name());
+    }
+
+    @Test
+    void deleteProductReturns400InvalidRequestForMalformedIdsWithoutCallingTheUseCase() {
+        deleteProduct("not-a-uuid", UUID.randomUUID().toString(), UUID.randomUUID().toString())
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_REQUEST");
+        deleteProduct(UUID.randomUUID().toString(), "not-a-uuid", UUID.randomUUID().toString())
+                .expectStatus().isBadRequest();
+        deleteProduct(UUID.randomUUID().toString(), UUID.randomUUID().toString(), "not-a-uuid")
+                .expectStatus().isBadRequest();
+        verifyNoInteractions(deleteProductUseCase);
+    }
+
+    private WebTestClient.ResponseSpec deleteProduct(String franchiseId, String branchId, String id) {
+        return webTestClient.delete()
+                .uri("/franchises/{franchiseId}/branches/{branchId}/products/{id}", franchiseId, branchId, id)
+                .accept(MediaType.APPLICATION_JSON)
+                .exchange();
     }
 
     private WebTestClient.ResponseSpec postProduct(String franchiseId, String branchId, Object body) {
