@@ -60,4 +60,14 @@ class FranchiseRepositoryAdapterTest {
                 .expectError(DataIntegrityViolationException.class)
                 .verify();
     }
+
+    @Test
+    void existsByIdEmitsTheRepositoryAnswer() {
+        UUID id = UUID.randomUUID();
+        when(repository.existsById(id)).thenReturn(Mono.just(true));
+
+        StepVerifier.create(adapter.existsById(id))
+                .expectNext(true)
+                .verifyComplete();
+    }
 }

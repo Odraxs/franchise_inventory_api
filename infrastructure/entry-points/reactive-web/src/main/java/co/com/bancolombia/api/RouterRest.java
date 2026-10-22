@@ -12,6 +12,7 @@ import static org.springframework.web.reactive.function.server.RouterFunctions.r
 public class RouterRest {
     @Bean
     public RouterFunction<ServerResponse> routerFunction(Handler handler) {
-        return route(POST("/franchises"), handler::createFranchise);
+        return route(POST(ApiPaths.FRANCHISES), handler::createFranchise)
+                .andRoute(POST(ApiPaths.BRANCHES), handler::addBranch);
     }
 }

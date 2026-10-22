@@ -9,6 +9,8 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Mono;
 
+import java.util.UUID;
+
 @Repository
 @RequiredArgsConstructor
 public class FranchiseRepositoryAdapter implements FranchiseGateway {
@@ -22,6 +24,11 @@ public class FranchiseRepositoryAdapter implements FranchiseGateway {
                 .map(FranchiseRepositoryAdapter::toEntity)
                 .onErrorMap(DuplicateKeyException.class,
                         error -> new BusinessException(ErrorCode.DUPLICATE_FRANCHISE_NAME, error));
+    }
+
+    @Override
+    public Mono<Boolean> existsById(UUID id) {
+        return repository.existsById(id);
     }
 
     private static FranchiseData toData(Franchise franchise) {
