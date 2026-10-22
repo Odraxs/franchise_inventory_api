@@ -4,6 +4,7 @@ import co.com.bancolombia.model.exception.BusinessException;
 import co.com.bancolombia.model.exception.BusinessException.ErrorCode;
 import co.com.bancolombia.model.franchise.Franchise;
 import co.com.bancolombia.model.franchise.gateways.FranchiseGateway;
+import co.com.bancolombia.r2dbc.resilience.DatabaseResilience;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
@@ -16,11 +17,12 @@ import java.util.UUID;
 public class FranchiseRepositoryAdapter implements FranchiseGateway {
 
     private final FranchiseDataRepository repository;
+    private final DatabaseResilience resilience;
 
     /** uq_franchise_name rejects a name that is already taken (ignoring case). */
     @Override
     public Mono<Franchise> save(Franchise franchise) {
-        return repository.save(toData(franchise))
+        return resilience.nonIdempotent(repository.save(toData(franchise)))
                 .map(FranchiseRepositoryAdapter::toEntity)
                 .onErrorMap(DuplicateKeyException.class,
                         error -> new BusinessException(ErrorCode.DUPLICATE_FRANCHISE_NAME, error));
