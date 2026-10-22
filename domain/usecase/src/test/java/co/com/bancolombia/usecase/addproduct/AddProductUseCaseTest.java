@@ -53,7 +53,7 @@ class AddProductUseCaseTest {
 
         StepVerifier.create(useCase.execute(FRANCHISE_ID, product()))
                 .expectNextMatches(saved -> id.equals(saved.id()) && BRANCH_ID.equals(saved.branchId())
-                        && "Cola".equals(saved.name()) && saved.stock() == 0L)
+                        && "Cola".equals(saved.name()) && saved.stock() == 0)
                 .verifyComplete();
     }
 
@@ -92,7 +92,7 @@ class AddProductUseCaseTest {
     }
 
     private static Product product() {
-        return Product.builder().branchId(BRANCH_ID).name("Cola").stock(0L).build();
+        return Product.builder().branchId(BRANCH_ID).name("Cola").stock(0).build();
     }
 
     private static boolean hasCode(Throwable error, ErrorCode code) {

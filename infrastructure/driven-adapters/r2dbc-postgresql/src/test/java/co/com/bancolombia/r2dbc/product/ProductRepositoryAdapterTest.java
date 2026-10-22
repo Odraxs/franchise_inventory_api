@@ -40,7 +40,7 @@ class ProductRepositoryAdapterTest {
 
         StepVerifier.create(adapter.save(product()))
                 .expectNextMatches(product -> id.equals(product.id()) && BRANCH_ID.equals(product.branchId())
-                        && "Cola".equals(product.name()) && product.stock() == 5L)
+                        && "Cola".equals(product.name()) && product.stock() == 5)
                 .verifyComplete();
     }
 
@@ -66,6 +66,6 @@ class ProductRepositoryAdapterTest {
     }
 
     private static Product product() {
-        return Product.builder().branchId(BRANCH_ID).name("Cola").stock(5L).build();
+        return Product.builder().branchId(BRANCH_ID).name("Cola").stock(5).build();
     }
 }

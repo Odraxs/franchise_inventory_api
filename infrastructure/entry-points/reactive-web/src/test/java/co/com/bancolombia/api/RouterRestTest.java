@@ -235,8 +235,8 @@ class RouterRestTest {
         UUID branchId = UUID.randomUUID();
         UUID id = UUID.randomUUID();
         when(addProductUseCase.execute(eq(franchiseId), argThat(product -> branchId.equals(product.branchId())
-                && "Cola".equals(product.name()) && product.stock() == 0L)))
-                .thenReturn(Mono.just(Product.builder().id(id).branchId(branchId).name("Cola").stock(0L).build()));
+                && "Cola".equals(product.name()) && product.stock() == 0)))
+                .thenReturn(Mono.just(Product.builder().id(id).branchId(branchId).name("Cola").stock(0).build()));
 
         postProduct(franchiseId.toString(), branchId.toString(), "{\"name\": \"Cola\", \"stock\": 0}")
                 .expectStatus().isCreated()
@@ -278,7 +278,7 @@ class RouterRestTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"{\"name\": \"Cola\"}", "{\"name\": \"Cola\", \"stock\": null}",
-            "{\"name\": \"Cola\", \"stock\": -1}", "{\"name\": \"Cola\", \"stock\": 2147483648}"})
+            "{\"name\": \"Cola\", \"stock\": -1}"})
     void addProductReturns400InvalidStockWithoutCallingTheUseCase(String body) {
         postProduct(UUID.randomUUID().toString(), UUID.randomUUID().toString(), body)
                 .expectStatus().isBadRequest()
@@ -288,7 +288,7 @@ class RouterRestTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"1.5", "\"abc\"", "\"5\"", "true", "{}", "[]", "99999999999999999999"})
+    @ValueSource(strings = {"1.5", "\"abc\"", "\"5\"", "true", "{}", "[]", "2147483648", "99999999999999999999"})
     void addProductReturns400InvalidRequestForWrongStockType(String stock) {
         postProduct(UUID.randomUUID().toString(), UUID.randomUUID().toString(),
                 "{\"name\": \"Cola\", \"stock\": " + stock + "}")
