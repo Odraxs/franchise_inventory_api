@@ -1,4 +1,4 @@
-# Input validation, image selection and the ALB variants of the Root Composition,
+# Input validation, image selection, task placement and the ALB variants of the Root Composition,
 # independent of the Environment.
 mock_provider "aws" {
   # Give the repository and the ALB known values during plan, so container_image
@@ -186,4 +186,84 @@ run "alb_ingress_is_limited_to_the_allowed_cidrs" {
     condition     = module.alb.ingress_rules == toset([{ cidr = "203.0.113.0/24", port = 80 }, { cidr = "198.51.100.7/32", port = 80 }])
     error_message = "The ALB must accept port 80 only from alb_allowed_ingress_cidrs."
   }
+}
+
+run "no_image_tag_plans_no_task_definition_and_no_service" {
+  command = plan
+
+  assert {
+    condition = (
+      module.ecs_service.task_definition == null &&
+      module.ecs_service.service_settings == null &&
+      output.ecs_service_name == null
+    )
+    error_message = "Without image_tag, no task definition and no ECS service may be planned."
+  }
+
+  assert {
+    condition     = output.ecs_cluster_name == "franchise-inventory-dev" && output.ecs_log_group_name == "/ecs/franchise-inventory-dev-api"
+    error_message = "Without image_tag, the cluster and the log group must still be planned."
+  }
+}
+
+run "image_tag_plans_the_task_definition_and_the_service" {
+  command = plan
+
+  variables {
+    image_tag = "0123456789ab"
+  }
+
+  assert {
+    condition = (
+      module.ecs_service.task_definition.containers[0].image == "123456789012.dkr.ecr.us-east-1.amazonaws.com/franchise-inventory-dev-api:0123456789ab" &&
+      output.ecs_service_name == "franchise-inventory-dev-api"
+    )
+    error_message = "With image_tag, the task definition must run <ecr url>:<image_tag> and the service must be planned."
+  }
+}
+
+run "private_tasks_without_nat_gateway_are_rejected" {
+  command = plan
+
+  variables {
+    tasks_in_private_subnets = true
+    enable_nat_gateway       = false
+  }
+
+  expect_failures = [var.tasks_in_private_subnets]
+}
+
+run "private_tasks_with_nat_gateway_get_no_public_ip" {
+  command = plan
+
+  variables {
+    tasks_in_private_subnets = true
+    enable_nat_gateway       = true
+    image_tag                = "0123456789ab"
+  }
+
+  assert {
+    condition     = module.ecs_service.service_settings.assign_public_ip == false
+    error_message = "Tasks in the private subnets must not get a public IP."
+  }
+}
+
+run "unknown_capacity_provider_is_rejected" {
+  command = plan
+
+  variables {
+    ecs_capacity_provider = "EC2"
+  }
+
+  expect_failures = [var.ecs_capacity_provider]
+}
+
+run "unsupported_log_retention_is_rejected" {
+  command = plan
+
+  variables {
+    ecs_log_retention_days = 10
+  }
+
+  expect_failures = [var.ecs_log_retention_days]
 }

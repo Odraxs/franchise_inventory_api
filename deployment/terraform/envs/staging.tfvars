@@ -30,5 +30,14 @@ db_secret_recovery_window_days = 7
 # to add HTTPS on port 443 and redirect HTTP to it.
 alb_allowed_ingress_cidrs = ["0.0.0.0/0"]
 
+# ECS: private tasks behind the NAT Gateway, like prod, so staging rehearses the
+# prod network path. Fargate Spot and 1 task keep the cost down: a Spot reclaim
+# in staging only means a short gap. Logs kept 14 days. If enable_nat_gateway is
+# set to false for a short test, set tasks_in_private_subnets = false too.
+tasks_in_private_subnets = true
+ecs_capacity_provider    = "FARGATE_SPOT"
+ecs_desired_count        = 1
+ecs_log_retention_days   = 14
+
 # Cost alarm: off. The budget protects the Free plan credits of the dev account only.
 enable_budget = false

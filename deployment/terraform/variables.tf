@@ -61,6 +61,17 @@ variable "enable_nat_gateway" {
   default     = false
 }
 
+variable "tasks_in_private_subnets" {
+  description = "Run the ECS tasks in the private subnets without a public IP. False runs them in the public subnets with a public IP (dev, no NAT Gateway). True requires enable_nat_gateway, because the tasks reach ECR, CloudWatch Logs and Secrets Manager over the internet."
+  type        = bool
+  default     = false
+
+  validation {
+    condition     = !var.tasks_in_private_subnets || var.enable_nat_gateway
+    error_message = "tasks_in_private_subnets = true requires enable_nat_gateway = true. Without a NAT Gateway, private tasks cannot pull the image from ECR."
+  }
+}
+
 variable "enable_budget" {
   description = "Create the monthly AWS Budget (USD 20) with email alerts at 50, 80 and 100 percent. True only in dev."
   type        = bool
@@ -156,4 +167,32 @@ variable "alb_certificate_arn" {
   type        = string
   default     = ""
   nullable    = false
+}
+
+variable "ecs_capacity_provider" {
+  description = "Fargate capacity provider of the ECS service: FARGATE_SPOT (cheaper, tasks can be reclaimed) or FARGATE (no interruptions)."
+  type        = string
+  default     = "FARGATE"
+
+  validation {
+    condition     = contains(["FARGATE", "FARGATE_SPOT"], var.ecs_capacity_provider)
+    error_message = "The ecs_capacity_provider must be FARGATE or FARGATE_SPOT."
+  }
+}
+
+variable "ecs_desired_count" {
+  description = "Number of ECS tasks when the service is created. Later changes are ignored, so Service Auto Scaling can own the count."
+  type        = number
+  default     = 1
+}
+
+variable "ecs_log_retention_days" {
+  description = "Number of days CloudWatch Logs keeps the container logs."
+  type        = number
+  default     = 7
+
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.ecs_log_retention_days)
+    error_message = "The ecs_log_retention_days must be a retention value that CloudWatch Logs supports, for example 7, 14 or 30."
+  }
 }

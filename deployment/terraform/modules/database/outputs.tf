@@ -8,6 +8,11 @@ output "secret_name" {
   value       = aws_secretsmanager_secret.db.name
 }
 
+output "port" {
+  description = "Port of the PostgreSQL database."
+  value       = local.port
+}
+
 output "security_group_id" {
   description = "ID of the database security group."
   value       = aws_security_group.db.id

@@ -10,6 +10,10 @@ locals {
   # Full image reference for the ECS task definition. Null until an Image Tag is set.
   container_image = var.image_tag == null ? null : "${module.ecr.repository_url}:${var.image_tag}"
 
+  # dev: public subnets with a public IP (no NAT Gateway). prod: private subnets
+  # without a public IP, behind the NAT Gateway (see var.tasks_in_private_subnets).
+  task_subnet_ids = var.tasks_in_private_subnets ? module.network.private_subnet_ids : module.network.public_subnet_ids
+
   # With a certificate, the ALB serves HTTPS and redirects HTTP to it.
   alb_url = "${var.alb_certificate_arn == "" ? "http" : "https"}://${module.alb.dns_name}"
 }
@@ -43,9 +47,8 @@ module "database" {
   vpc_id      = module.network.vpc_id
   subnet_ids  = module.network.private_subnet_ids
 
-  # Empty until the ecs-service module exists. That module then passes the task
-  # security group, so only the tasks can reach PostgreSQL.
-  allowed_security_group_ids = []
+  # Only the ECS tasks can reach PostgreSQL.
+  allowed_security_group_ids = [module.ecs_service.task_security_group_id]
 
   engine_version              = var.db_engine_version
   instance_class              = var.db_instance_class
@@ -69,4 +72,31 @@ module "alb" {
   container_port        = var.container_port
   allowed_ingress_cidrs = var.alb_allowed_ingress_cidrs
   certificate_arn       = var.alb_certificate_arn
+}
+
+# The first apply runs without image_tag: container_image is null, so the module
+# creates no task definition and no service. See modules/ecs-service/main.tf.
+module "ecs_service" {
+  source = "./modules/ecs-service"
+
+  name_prefix        = local.name_prefix
+  aws_region         = var.aws_region
+  container_image    = local.container_image
+  ecr_repository_arn = module.ecr.repository_arn
+
+  vpc_id                = module.network.vpc_id
+  subnet_ids            = local.task_subnet_ids
+  assign_public_ip      = !var.tasks_in_private_subnets
+  alb_security_group_id = module.alb.security_group_id
+  target_group_arn      = module.alb.target_group_arn
+
+  db_security_group_id = module.database.security_group_id
+  db_port              = module.database.port
+  db_secret_arn        = module.database.secret_arn
+  db_secret_name       = module.database.secret_name
+
+  container_port     = var.container_port
+  capacity_provider  = var.ecs_capacity_provider
+  desired_count      = var.ecs_desired_count
+  log_retention_days = var.ecs_log_retention_days
 }

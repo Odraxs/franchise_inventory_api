@@ -25,6 +25,13 @@ db_secret_recovery_window_days = 0
 # ALB: public HTTP on port 80. No domain, so no certificate (alb_certificate_arn stays empty).
 alb_allowed_ingress_cidrs = ["0.0.0.0/0"]
 
+# ECS: Fargate Spot (much cheaper; a reclaimed task is replaced), tasks in the
+# public subnets with a public IP (no NAT Gateway), 1 task, logs kept 7 days.
+tasks_in_private_subnets = false
+ecs_capacity_provider    = "FARGATE_SPOT"
+ecs_desired_count        = 1
+ecs_log_retention_days   = 7
+
 # Cost alarm: USD 20/month AWS Budget with email alerts at 50, 80 and 100 percent.
 # The email is never committed: export TF_VAR_budget_alert_email=<address> before plan/apply.
 enable_budget = true

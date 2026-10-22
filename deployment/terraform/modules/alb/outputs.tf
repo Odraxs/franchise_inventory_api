@@ -6,6 +6,10 @@ output "dns_name" {
 output "target_group_arn" {
   description = "ARN of the target group. The ECS service registers its tasks here."
   value       = aws_lb_target_group.api.arn
+
+  # ECS rejects a target group that no load balancer uses yet. The listeners
+  # attach it, so a service that reads this output waits for them.
+  depends_on = [aws_lb_listener.http, aws_lb_listener.https]
 }
 
 output "security_group_id" {

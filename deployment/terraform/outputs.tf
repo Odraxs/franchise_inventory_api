@@ -22,3 +22,18 @@ output "db_secret_name" {
   description = "Name of the DB Secret. The ECS task gets it in the DB_SECRET_NAME environment variable."
   value       = module.database.secret_name
 }
+
+output "ecs_cluster_name" {
+  description = "Name of the ECS cluster, e.g. for aws ecs describe-services --cluster."
+  value       = module.ecs_service.cluster_name
+}
+
+output "ecs_service_name" {
+  description = "Name of the ECS service. Null until image_tag is set (the service needs a published image)."
+  value       = module.ecs_service.service_name
+}
+
+output "ecs_log_group_name" {
+  description = "CloudWatch log group of the API container, e.g. for aws logs tail --follow."
+  value       = module.ecs_service.log_group_name
+}

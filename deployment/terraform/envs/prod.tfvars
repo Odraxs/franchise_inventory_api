@@ -27,5 +27,12 @@ db_secret_recovery_window_days = 30
 # ACM certificate ARN to add HTTPS on port 443 and redirect HTTP to it.
 alb_allowed_ingress_cidrs = ["0.0.0.0/0"]
 
+# ECS: regular Fargate (no Spot reclaims), tasks in the private subnets without a
+# public IP (egress through the NAT Gateway), 2 tasks, logs kept 30 days.
+tasks_in_private_subnets = true
+ecs_capacity_provider    = "FARGATE"
+ecs_desired_count        = 2
+ecs_log_retention_days   = 30
+
 # Cost alarm: off. The budget protects the Free plan credits of the dev account only.
 enable_budget = false
