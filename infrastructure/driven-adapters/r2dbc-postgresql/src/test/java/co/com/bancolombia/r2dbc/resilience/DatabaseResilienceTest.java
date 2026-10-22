@@ -1,5 +1,6 @@
 package co.com.bancolombia.r2dbc.resilience;
 
+import co.com.bancolombia.model.exception.BusinessException;
 import co.com.bancolombia.model.exception.TechnicalException;
 import co.com.bancolombia.model.exception.TechnicalException.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
@@ -125,5 +126,32 @@ class DatabaseResilienceTest {
                 .verifyComplete();
         assertThat(failing.subscribeCount()).isEqualTo(MINIMUM_NUMBER_OF_CALLS);
         next.assertWasSubscribed();
+    }
+
+    @Test
+    void idempotentRetriesATimeoutAndRecovers() {
+        AtomicInteger subscriptions = new AtomicInteger();
+        Iterator<Mono<String>> answers = List.of(Mono.<String>never(), Mono.just(ROW)).iterator();
+        Mono<String> call = Mono.defer(answers::next)
+                .doOnSubscribe(subscription -> subscriptions.incrementAndGet());
+
+        StepVerifier.withVirtualTime(() -> resilience.idempotent(call))
+                .expectSubscription()
+                .thenAwait(TIMEOUT)
+                .thenAwait(ALL_BACKOFFS)
+                .expectNext(ROW)
+                .verifyComplete();
+        assertThat(subscriptions).hasValue(2);
+    }
+
+    @Test
+    void idempotentPassesABusinessErrorThroughWithoutRetrying() {
+        PublisherProbe<String> failing = PublisherProbe.of(Mono.error(
+                new BusinessException(BusinessException.ErrorCode.INVALID_FRANCHISE_NAME)));
+
+        StepVerifier.create(resilience.idempotent(failing.mono()))
+                .expectError(BusinessException.class)
+                .verify();
+        assertThat(failing.subscribeCount()).isEqualTo(1);
     }
 }

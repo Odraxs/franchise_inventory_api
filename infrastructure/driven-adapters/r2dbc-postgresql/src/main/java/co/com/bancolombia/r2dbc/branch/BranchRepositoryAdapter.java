@@ -30,7 +30,7 @@ public class BranchRepositoryAdapter implements BranchGateway {
 
     @Override
     public Mono<Boolean> existsByIdAndFranchiseId(UUID id, UUID franchiseId) {
-        return repository.existsByIdAndFranchiseId(id, franchiseId);
+        return resilience.idempotent(repository.existsByIdAndFranchiseId(id, franchiseId));
     }
 
     private static BranchData toData(Branch branch) {

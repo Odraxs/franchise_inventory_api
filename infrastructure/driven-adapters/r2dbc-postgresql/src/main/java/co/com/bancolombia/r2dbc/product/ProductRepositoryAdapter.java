@@ -31,7 +31,7 @@ public class ProductRepositoryAdapter implements ProductGateway {
     /** Only an active Product of the branch is marked, so a repeated delete changes no row. */
     @Override
     public Mono<Boolean> delete(UUID id, UUID branchId) {
-        return repository.softDelete(id, branchId).map(rows -> rows > 0);
+        return resilience.idempotent(repository.softDelete(id, branchId)).map(rows -> rows > 0);
     }
 
     private static ProductData toData(Product product) {

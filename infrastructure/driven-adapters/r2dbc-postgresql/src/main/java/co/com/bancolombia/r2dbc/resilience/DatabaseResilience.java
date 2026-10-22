@@ -26,18 +26,28 @@ import java.util.concurrent.TimeoutException;
 public class DatabaseResilience {
 
     private static final String DATABASE = "database";
-    private static final String DATABASE_NON_IDEMPOTENT = "databaseNonIdempotent";
+    static final String DATABASE_NON_IDEMPOTENT = "databaseNonIdempotent";
+    static final String DATABASE_IDEMPOTENT = "databaseIdempotent";
 
     private final CircuitBreakerRegistry circuitBreakerRegistry;
     private final TimeLimiterRegistry timeLimiterRegistry;
     private final RetryRegistry retryRegistry;
 
+    /** For a read or the soft delete: safe to repeat, so a Timeout is retried too. */
+    public <T> Mono<T> idempotent(Mono<T> call) {
+        return protect(call, DATABASE_IDEMPOTENT);
+    }
+
     /** For an INSERT: it may be committed when it times out, so only connection-level errors are retried. */
     public <T> Mono<T> nonIdempotent(Mono<T> call) {
+        return protect(call, DATABASE_NON_IDEMPOTENT);
+    }
+
+    private <T> Mono<T> protect(Mono<T> call, String retryInstance) {
         return call
                 .transformDeferred(TimeLimiterOperator.of(timeLimiterRegistry.timeLimiter(DATABASE)))
                 .transformDeferred(CircuitBreakerOperator.of(circuitBreakerRegistry.circuitBreaker(DATABASE)))
-                .transformDeferred(RetryOperator.of(retryRegistry.retry(DATABASE_NON_IDEMPOTENT)))
+                .transformDeferred(RetryOperator.of(retryRegistry.retry(retryInstance)))
                 .onErrorMap(DatabaseResilience::isInfrastructureFailure,
                         error -> new TechnicalException(ErrorCode.DATABASE_UNAVAILABLE, error));
     }

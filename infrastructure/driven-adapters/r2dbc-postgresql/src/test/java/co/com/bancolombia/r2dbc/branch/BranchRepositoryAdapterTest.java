@@ -16,7 +16,11 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import reactor.test.publisher.PublisherProbe;
 
+import java.time.Duration;
+import java.util.Iterator;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
@@ -24,6 +28,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class BranchRepositoryAdapterTest {
 
+    /** Longer than every backoff of the fast test config. */
+    private static final Duration ALL_BACKOFFS = Duration.ofSeconds(1);
     private static final UUID FRANCHISE_ID = UUID.randomUUID();
 
     @Mock
@@ -67,6 +73,40 @@ class BranchRepositoryAdapterTest {
         StepVerifier.create(adapter.existsByIdAndFranchiseId(id, FRANCHISE_ID))
                 .expectNext(true)
                 .verifyComplete();
+    }
+
+    @Test
+    void existsByIdAndFranchiseIdIsRetriedAfterATimeoutAndRecovers() {
+        UUID id = UUID.randomUUID();
+        AtomicInteger subscriptions = new AtomicInteger();
+        Iterator<Mono<Boolean>> answers = List.of(Mono.<Boolean>never(), Mono.just(true)).iterator();
+        when(repository.existsByIdAndFranchiseId(id, FRANCHISE_ID)).thenReturn(Mono.defer(answers::next)
+                .doOnSubscribe(subscription -> subscriptions.incrementAndGet()));
+
+        StepVerifier.withVirtualTime(() -> adapter.existsByIdAndFranchiseId(id, FRANCHISE_ID))
+                .expectSubscription()
+                .thenAwait(DatabaseResilienceFixture.TIMEOUT)
+                .thenAwait(ALL_BACKOFFS)
+                .expectNext(true)
+                .verifyComplete();
+        assertThat(subscriptions).hasValue(2);
+    }
+
+    @Test
+    void stalledExistsByIdAndFranchiseIdFailsWithDatabaseUnavailable() {
+        UUID id = UUID.randomUUID();
+        PublisherProbe<Boolean> stalled = PublisherProbe.of(Mono.never());
+        when(repository.existsByIdAndFranchiseId(id, FRANCHISE_ID)).thenReturn(stalled.mono());
+
+        StepVerifier.withVirtualTime(() -> adapter.existsByIdAndFranchiseId(id, FRANCHISE_ID))
+                .expectSubscription()
+                .thenAwait(DatabaseResilienceFixture.TIMEOUT.multipliedBy(DatabaseResilienceFixture.MAX_ATTEMPTS)
+                        .plus(ALL_BACKOFFS))
+                .expectErrorMatches(error -> error instanceof TechnicalException exception
+                        && exception.getErrorCode() == TechnicalException.ErrorCode.DATABASE_UNAVAILABLE)
+                .verify();
+        // The retries count in the breaker, so it can open before the last attempt
+        assertThat(stalled.subscribeCount()).isBetween(2L, (long) DatabaseResilienceFixture.MAX_ATTEMPTS);
     }
 
     @Test

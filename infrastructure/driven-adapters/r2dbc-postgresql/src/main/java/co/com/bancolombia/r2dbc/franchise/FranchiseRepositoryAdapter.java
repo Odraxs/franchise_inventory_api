@@ -30,7 +30,7 @@ public class FranchiseRepositoryAdapter implements FranchiseGateway {
 
     @Override
     public Mono<Boolean> existsById(UUID id) {
-        return repository.existsById(id);
+        return resilience.idempotent(repository.existsById(id));
     }
 
     private static FranchiseData toData(Franchise franchise) {

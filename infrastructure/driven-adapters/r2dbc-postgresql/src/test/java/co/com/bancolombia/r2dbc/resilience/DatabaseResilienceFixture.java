@@ -44,13 +44,23 @@ public final class DatabaseResilienceFixture {
                         DataAccessResourceFailureException.class)
                 .build();
         TimeLimiterConfig timeLimiterConfig = TimeLimiterConfig.custom().timeoutDuration(TIMEOUT).build();
-        RetryConfig retryConfig = RetryConfig.custom()
+        RetryConfig nonIdempotentRetry = RetryConfig.custom()
                 .maxAttempts(MAX_ATTEMPTS)
                 .intervalFunction(IntervalFunction.ofExponentialRandomBackoff(RETRY_WAIT_DURATION,
                         BACKOFF_MULTIPLIER, RANDOMIZED_WAIT_FACTOR))
                 .retryExceptions(TransientDataAccessResourceException.class)
                 .build();
+        RetryConfig idempotentRetry = RetryConfig.custom()
+                .maxAttempts(MAX_ATTEMPTS)
+                .intervalFunction(IntervalFunction.ofExponentialRandomBackoff(RETRY_WAIT_DURATION,
+                        BACKOFF_MULTIPLIER, RANDOMIZED_WAIT_FACTOR))
+                .retryExceptions(TimeoutException.class, TransientDataAccessException.class)
+                .build();
+        // Spring's auto-config creates every retry instance eagerly; retry(name) alone would use the default config
+        RetryRegistry retryRegistry = RetryRegistry.ofDefaults();
+        retryRegistry.retry(DatabaseResilience.DATABASE_NON_IDEMPOTENT, nonIdempotentRetry);
+        retryRegistry.retry(DatabaseResilience.DATABASE_IDEMPOTENT, idempotentRetry);
         return new DatabaseResilience(CircuitBreakerRegistry.of(circuitBreakerConfig),
-                TimeLimiterRegistry.of(timeLimiterConfig), RetryRegistry.of(retryConfig));
+                TimeLimiterRegistry.of(timeLimiterConfig), retryRegistry);
     }
 }
