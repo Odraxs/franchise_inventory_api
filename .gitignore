@@ -337,8 +337,10 @@ build-cache
 
 .env
 
-# Terraform
+### Terraform ###
+# Keep .terraform.lock.hcl tracked: it pins provider versions and checksums.
 .terraform/
 *.tfstate
 *.tfstate.*
 crash.log
+*.tfplan
