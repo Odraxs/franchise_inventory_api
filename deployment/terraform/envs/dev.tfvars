@@ -11,6 +11,17 @@ vpc_cidr           = "10.10.0.0/16"
 az_count           = 2
 enable_nat_gateway = false
 
+# Database: smallest instance, Single-AZ, and easy to destroy and recreate.
+# The DB Secret is deleted at once (window 0), so the same name can be created again.
+db_instance_class              = "db.t4g.micro"
+db_allocated_storage           = 20
+db_max_allocated_storage       = null
+db_multi_az                    = false
+db_backup_retention_days       = 1
+db_deletion_protection         = false
+db_skip_final_snapshot         = true
+db_secret_recovery_window_days = 0
+
 # Cost alarm: USD 20/month AWS Budget with email alerts at 50, 80 and 100 percent.
 # The email is never committed: export TF_VAR_budget_alert_email=<address> before plan/apply.
 enable_budget = true

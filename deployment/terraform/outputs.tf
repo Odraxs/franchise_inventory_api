@@ -12,3 +12,8 @@ output "container_image" {
   description = "Full image reference (<repository_url>:<image_tag>) that the Environment deploys. Null when image_tag is not set."
   value       = local.container_image
 }
+
+output "db_secret_name" {
+  description = "Name of the DB Secret. The ECS task gets it in the DB_SECRET_NAME environment variable."
+  value       = module.database.secret_name
+}

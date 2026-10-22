@@ -11,6 +11,30 @@ mock_provider "aws" {
   }
 }
 
+# Mock providers cannot hold ephemeral resources, so the DB password provider is a
+# real configuration that cannot reach AWS (fake keys, a closed local endpoint).
+# override_module replaces the password module, so the provider is never called.
+provider "aws" {
+  alias                       = "db_password"
+  region                      = "us-east-1"
+  access_key                  = "mock"
+  secret_key                  = "mock"
+  skip_credentials_validation = true
+  skip_requesting_account_id  = true
+  skip_metadata_api_check     = true
+
+  endpoints {
+    secretsmanager = "http://127.0.0.1:9"
+  }
+}
+
+override_module {
+  target = module.database.module.password
+  outputs = {
+    value = "test-only-password"
+  }
+}
+
 variables {
   environment         = "dev"
   ecr_force_delete    = true
@@ -19,6 +43,15 @@ variables {
   az_count            = 2
   enable_nat_gateway  = false
   enable_budget       = true
+
+  db_instance_class              = "db.t4g.micro"
+  db_allocated_storage           = 20
+  db_max_allocated_storage       = null
+  db_multi_az                    = false
+  db_backup_retention_days       = 1
+  db_deletion_protection         = false
+  db_skip_final_snapshot         = true
+  db_secret_recovery_window_days = 0
 
   # Not in envs/dev.tfvars: the real address comes from TF_VAR_budget_alert_email.
   budget_alert_email = "test@example.com"
@@ -91,5 +124,62 @@ run "dev_plan" {
       nonsensitive(n.subscriber_email_addresses) == toset(["test@example.com"])
     ])
     error_message = "Each dev budget notification must email budget_alert_email."
+  }
+
+  assert {
+    condition     = output.db_secret_name == "franchise-inventory-dev-db"
+    error_message = "The dev DB Secret must be named franchise-inventory-dev-db."
+  }
+
+  assert {
+    condition = (
+      module.database.instance_settings.engine == "postgres" &&
+      startswith(module.database.instance_settings.engine_version, "17")
+    )
+    error_message = "The dev database must be PostgreSQL 17."
+  }
+
+  assert {
+    condition = (
+      module.database.instance_settings.instance_class == "db.t4g.micro" &&
+      module.database.instance_settings.allocated_storage == 20 &&
+      module.database.instance_settings.max_allocated_storage == null &&
+      module.database.instance_settings.multi_az == false
+    )
+    error_message = "dev must plan a Single-AZ db.t4g.micro with 20 GB and no storage autoscaling."
+  }
+
+  assert {
+    condition = (
+      module.database.instance_settings.storage_type == "gp3" &&
+      module.database.instance_settings.storage_encrypted == true &&
+      module.database.instance_settings.publicly_accessible == false
+    )
+    error_message = "The dev database must use encrypted gp3 storage and must not be publicly accessible."
+  }
+
+  assert {
+    condition = (
+      module.database.instance_settings.backup_retention_period == 1 &&
+      module.database.instance_settings.deletion_protection == false &&
+      module.database.instance_settings.skip_final_snapshot == true &&
+      module.database.instance_settings.final_snapshot_identifier == null
+    )
+    error_message = "dev must keep 1 day of backups, with no deletion protection and no final snapshot."
+  }
+
+  assert {
+    condition     = module.database.instance_settings.secret_recovery_window_days == 0
+    error_message = "The dev DB Secret must have a recovery window of 0 days."
+  }
+
+  assert {
+    condition     = module.database.stores_plaintext_password == false
+    error_message = "The DB password must only be written through write-only arguments."
+  }
+
+  assert {
+    condition     = length(module.database.postgres_ingress_rules) == 0
+    error_message = "Until the ECS tasks exist, no client may reach the dev database."
   }
 }

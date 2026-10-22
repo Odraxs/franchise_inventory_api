@@ -78,3 +78,63 @@ variable "budget_alert_email" {
     error_message = "When enable_budget is true, budget_alert_email must be a valid email address. Set it with TF_VAR_budget_alert_email."
   }
 }
+
+variable "db_engine_version" {
+  description = "RDS PostgreSQL engine version. Major version 17 only, like the local database."
+  type        = string
+  default     = "17"
+}
+
+variable "db_instance_class" {
+  description = "RDS instance class of the Environment's database."
+  type        = string
+  default     = "db.t4g.micro"
+}
+
+variable "db_allocated_storage" {
+  description = "Initial RDS storage in GB (gp3, encrypted)."
+  type        = number
+  default     = 20
+}
+
+variable "db_max_allocated_storage" {
+  description = "Upper limit in GB for RDS storage autoscaling. Null turns autoscaling off."
+  type        = number
+  default     = null
+}
+
+variable "db_multi_az" {
+  description = "Run a Multi-AZ standby for the database."
+  type        = bool
+  default     = false
+}
+
+variable "db_backup_retention_days" {
+  description = "Number of days RDS keeps the automated backups (1 to 35)."
+  type        = number
+  default     = 7
+}
+
+variable "db_deletion_protection" {
+  description = "Block the deletion of the database. False only in disposable Environments."
+  type        = bool
+  default     = true
+}
+
+variable "db_skip_final_snapshot" {
+  description = "Destroy the database without a final snapshot. True only in disposable Environments."
+  type        = bool
+  default     = false
+}
+
+variable "db_secret_recovery_window_days" {
+  description = "Recovery window of the DB Secret in days. 0 deletes it at once (dev). Otherwise 7 to 30."
+  type        = number
+  default     = 30
+}
+
+variable "db_password_version" {
+  description = "Version of the DB master password. Increase it by 1 to rotate the password in RDS and in the DB Secret in one apply. The same apply also rewrites the host and port in the DB Secret."
+  type        = number
+  default     = 1
+}

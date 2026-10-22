@@ -13,5 +13,18 @@ vpc_cidr           = "10.20.0.0/16"
 az_count           = 2
 enable_nat_gateway = true
 
+# Database: the dev instance size (cheap), but it rehearses the prod safety settings
+# that change how destroy behaves: storage autoscaling, a final snapshot and a
+# secret recovery window. Single-AZ and no deletion protection, so a short-lived
+# staging can still be destroyed without a manual step.
+db_instance_class              = "db.t4g.micro"
+db_allocated_storage           = 20
+db_max_allocated_storage       = 50
+db_multi_az                    = false
+db_backup_retention_days       = 3
+db_deletion_protection         = false
+db_skip_final_snapshot         = false
+db_secret_recovery_window_days = 7
+
 # Cost alarm: off. The budget protects the Free plan credits of the dev account only.
 enable_budget = false

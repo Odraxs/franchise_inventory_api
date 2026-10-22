@@ -17,6 +17,30 @@ mock_provider "aws" {
   }
 }
 
+# Mock providers cannot hold ephemeral resources, so the DB password provider is a
+# real configuration that cannot reach AWS (fake keys, a closed local endpoint).
+# override_module replaces the password module, so the provider is never called.
+provider "aws" {
+  alias                       = "db_password"
+  region                      = "us-east-1"
+  access_key                  = "mock"
+  secret_key                  = "mock"
+  skip_credentials_validation = true
+  skip_requesting_account_id  = true
+  skip_metadata_api_check     = true
+
+  endpoints {
+    secretsmanager = "http://127.0.0.1:9"
+  }
+}
+
+override_module {
+  target = module.database.module.password
+  outputs = {
+    value = "test-only-password"
+  }
+}
+
 variables {
   environment = "dev"
 }
