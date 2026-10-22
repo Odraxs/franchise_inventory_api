@@ -6,6 +6,7 @@ import org.springframework.web.reactive.function.server.RouterFunction;
 import org.springframework.web.reactive.function.server.ServerResponse;
 
 import static org.springframework.web.reactive.function.server.RequestPredicates.DELETE;
+import static org.springframework.web.reactive.function.server.RequestPredicates.GET;
 import static org.springframework.web.reactive.function.server.RequestPredicates.PATCH;
 import static org.springframework.web.reactive.function.server.RequestPredicates.POST;
 import static org.springframework.web.reactive.function.server.RouterFunctions.route;
@@ -18,6 +19,7 @@ public class RouterRest {
                 .andRoute(POST(ApiPaths.BRANCHES), handler::addBranch)
                 .andRoute(POST(ApiPaths.PRODUCTS), handler::addProduct)
                 .andRoute(DELETE(ApiPaths.PRODUCT), handler::deleteProduct)
-                .andRoute(PATCH(ApiPaths.PRODUCT_STOCK), handler::updateProductStock);
+                .andRoute(PATCH(ApiPaths.PRODUCT_STOCK), handler::updateProductStock)
+                .andRoute(GET(ApiPaths.TOP_STOCK_PRODUCTS), handler::getTopStockProducts);
     }
 }

@@ -12,6 +12,7 @@ final class ApiPaths {
     static final String BRANCH = BRANCHES + "/{" + ID + "}";
     static final String PRODUCTS = BRANCHES + "/{" + BRANCH_ID + "}/products";
     static final String PRODUCT = PRODUCTS + "/{" + ID + "}";
+    static final String TOP_STOCK_PRODUCTS = FRANCHISES + "/{" + FRANCHISE_ID + "}/top-stock-products";
 
     static final String PRODUCT_STOCK = PRODUCT + "/stock";
 
