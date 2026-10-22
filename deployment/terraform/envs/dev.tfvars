@@ -22,6 +22,9 @@ db_deletion_protection         = false
 db_skip_final_snapshot         = true
 db_secret_recovery_window_days = 0
 
+# ALB: public HTTP on port 80. No domain, so no certificate (alb_certificate_arn stays empty).
+alb_allowed_ingress_cidrs = ["0.0.0.0/0"]
+
 # Cost alarm: USD 20/month AWS Budget with email alerts at 50, 80 and 100 percent.
 # The email is never committed: export TF_VAR_budget_alert_email=<address> before plan/apply.
 enable_budget = true

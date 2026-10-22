@@ -53,6 +53,8 @@ variables {
   db_skip_final_snapshot         = true
   db_secret_recovery_window_days = 0
 
+  alb_allowed_ingress_cidrs = ["0.0.0.0/0"]
+
   # Not in envs/dev.tfvars: the real address comes from TF_VAR_budget_alert_email.
   budget_alert_email = "test@example.com"
 }
@@ -181,5 +183,43 @@ run "dev_plan" {
   assert {
     condition     = length(module.database.postgres_ingress_rules) == 0
     error_message = "Until the ECS tasks exist, no client may reach the dev database."
+  }
+
+  assert {
+    condition = (
+      module.alb.actuator_rule.listener_port == 80 &&
+      module.alb.actuator_rule.action_type == "fixed-response" &&
+      module.alb.actuator_rule.status_code == "404" &&
+      contains(module.alb.actuator_rule.path_patterns, "/actuator/*") &&
+      contains(module.alb.actuator_rule.path_patterns, "/actuator")
+    )
+    error_message = "The dev ALB must answer a fixed 404 for /actuator and /actuator/* on the HTTP listener."
+  }
+
+  assert {
+    condition = (
+      module.alb.health_check.path == "/actuator/health/readiness" &&
+      module.alb.health_check.matcher == "200" &&
+      module.alb.health_check.port == "traffic-port"
+    )
+    error_message = "The dev target group must expect 200 from /actuator/health/readiness on the container port."
+  }
+
+  assert {
+    condition = (
+      module.alb.target_group_settings.target_type == "ip" &&
+      module.alb.target_group_settings.port == 8080
+    )
+    error_message = "The dev target group must have target type ip on port 8080."
+  }
+
+  assert {
+    condition     = module.alb.ingress_rules == toset([{ cidr = "0.0.0.0/0", port = 80 }])
+    error_message = "Without a certificate, the dev ALB must accept only port 80, from alb_allowed_ingress_cidrs."
+  }
+
+  assert {
+    condition     = module.alb.listeners == [{ port = 80, protocol = "HTTP", default_action = "forward" }]
+    error_message = "Without a certificate, the dev ALB must have only an HTTP listener that forwards to the tasks."
   }
 }

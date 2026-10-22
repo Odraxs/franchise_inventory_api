@@ -138,3 +138,22 @@ variable "db_password_version" {
   type        = number
   default     = 1
 }
+
+variable "container_port" {
+  description = "Port that the API container listens on (server.port of the app)."
+  type        = number
+  default     = 8080
+}
+
+variable "alb_allowed_ingress_cidrs" {
+  description = "IPv4 CIDR blocks that may reach the public ALB. The default allows the whole internet."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
+variable "alb_certificate_arn" {
+  description = "ARN of an ACM certificate for the ALB. Empty means HTTP only. Set, it adds HTTPS on port 443 and HTTP redirects to HTTPS."
+  type        = string
+  default     = ""
+  nullable    = false
+}

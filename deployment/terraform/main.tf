@@ -9,6 +9,9 @@ locals {
 
   # Full image reference for the ECS task definition. Null until an Image Tag is set.
   container_image = var.image_tag == null ? null : "${module.ecr.repository_url}:${var.image_tag}"
+
+  # With a certificate, the ALB serves HTTPS and redirects HTTP to it.
+  alb_url = "${var.alb_certificate_arn == "" ? "http" : "https"}://${module.alb.dns_name}"
 }
 
 module "ecr" {
@@ -54,4 +57,16 @@ module "database" {
   skip_final_snapshot         = var.db_skip_final_snapshot
   secret_recovery_window_days = var.db_secret_recovery_window_days
   password_version            = var.db_password_version
+}
+
+module "alb" {
+  source = "./modules/alb"
+
+  name_prefix           = local.name_prefix
+  vpc_id                = module.network.vpc_id
+  vpc_cidr              = var.vpc_cidr
+  public_subnet_ids     = module.network.public_subnet_ids
+  container_port        = var.container_port
+  allowed_ingress_cidrs = var.alb_allowed_ingress_cidrs
+  certificate_arn       = var.alb_certificate_arn
 }

@@ -13,6 +13,11 @@ output "container_image" {
   value       = local.container_image
 }
 
+output "alb_url" {
+  description = "Base URL of the API through the ALB: https://<dns> when a certificate is set, otherwise http://<dns>."
+  value       = local.alb_url
+}
+
 output "db_secret_name" {
   description = "Name of the DB Secret. The ECS task gets it in the DB_SECRET_NAME environment variable."
   value       = module.database.secret_name

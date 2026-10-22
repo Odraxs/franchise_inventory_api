@@ -52,6 +52,8 @@ variables {
   db_deletion_protection         = true
   db_skip_final_snapshot         = false
   db_secret_recovery_window_days = 30
+
+  alb_allowed_ingress_cidrs = ["0.0.0.0/0"]
 }
 
 run "prod_plan" {
@@ -142,5 +144,23 @@ run "prod_plan" {
   assert {
     condition     = module.database.stores_plaintext_password == false
     error_message = "The DB password must only be written through write-only arguments."
+  }
+
+  assert {
+    condition = (
+      module.alb.actuator_rule.status_code == "404" &&
+      contains(module.alb.actuator_rule.path_patterns, "/actuator/*")
+    )
+    error_message = "The prod ALB must answer a fixed 404 for /actuator/*."
+  }
+
+  assert {
+    condition     = module.alb.health_check.path == "/actuator/health/readiness"
+    error_message = "The prod target group must check /actuator/health/readiness."
+  }
+
+  assert {
+    condition     = module.alb.ingress_rules == toset([{ cidr = "0.0.0.0/0", port = 80 }])
+    error_message = "The prod ALB must accept only port 80, from alb_allowed_ingress_cidrs."
   }
 }

@@ -26,5 +26,9 @@ db_deletion_protection         = false
 db_skip_final_snapshot         = false
 db_secret_recovery_window_days = 7
 
+# ALB: public HTTP on port 80. Set alb_certificate_arn to an ACM certificate ARN
+# to add HTTPS on port 443 and redirect HTTP to it.
+alb_allowed_ingress_cidrs = ["0.0.0.0/0"]
+
 # Cost alarm: off. The budget protects the Free plan credits of the dev account only.
 enable_budget = false
