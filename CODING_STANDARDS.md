@@ -76,6 +76,7 @@ Use the Resilience4j Reactor operators (`transformDeferred(CircuitBreakerOperato
 - Inject by constructor in every bean: `@RequiredArgsConstructor` + `final` fields.
 - Choose Lombok annotations on purpose: `@Builder(toBuilder = true)` on domain entity records, `@Value` for immutable value classes that cannot be records. Use `@Data` only where mutability is required.
 - Write all code in English: classes, methods, variables and technical comments.
+- Name every literal that carries meaning (paths, path variable names, code prefixes) as a `private static final` constant. Share constants between classes in one constants class, such as `ApiPaths` for routes.
 
 ## 5. Test code
 
