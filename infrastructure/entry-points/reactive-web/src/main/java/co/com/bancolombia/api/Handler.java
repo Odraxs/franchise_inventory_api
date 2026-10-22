@@ -54,10 +54,7 @@ public class Handler {
     private final GetTopStockReportUseCase getTopStockReportUseCase;
 
     public Mono<ServerResponse> createFranchise(ServerRequest serverRequest) {
-        return serverRequest.bodyToMono(CreateFranchiseRequest.class)
-                .onErrorMap(ServerWebInputException.class,
-                        error -> new BusinessException(ErrorCode.INVALID_REQUEST, error))
-                .switchIfEmpty(Mono.error(() -> new BusinessException(ErrorCode.INVALID_REQUEST)))
+        return readBody(serverRequest, CreateFranchiseRequest.class)
                 .map(request -> Franchise.builder().name(request.name()).build())
                 .flatMap(createFranchiseUseCase::execute)
                 .flatMap(franchise -> ServerResponse
@@ -68,10 +65,7 @@ public class Handler {
 
     public Mono<ServerResponse> addBranch(ServerRequest serverRequest) {
         return parseId(serverRequest.pathVariable(ApiPaths.FRANCHISE_ID))
-                .flatMap(franchiseId -> serverRequest.bodyToMono(CreateBranchRequest.class)
-                        .onErrorMap(ServerWebInputException.class,
-                                error -> new BusinessException(ErrorCode.INVALID_REQUEST, error))
-                        .switchIfEmpty(Mono.error(() -> new BusinessException(ErrorCode.INVALID_REQUEST)))
+                .flatMap(franchiseId -> readBody(serverRequest, CreateBranchRequest.class)
                         .map(request -> Branch.builder().franchiseId(franchiseId).name(request.name()).build()))
                 .flatMap(addBranchUseCase::execute)
                 .flatMap(branch -> ServerResponse
@@ -84,10 +78,7 @@ public class Handler {
     public Mono<ServerResponse> addProduct(ServerRequest serverRequest) {
         return Mono.zip(parseId(serverRequest.pathVariable(ApiPaths.FRANCHISE_ID)),
                         parseId(serverRequest.pathVariable(ApiPaths.BRANCH_ID)))
-                .flatMap(ids -> serverRequest.bodyToMono(CreateProductRequest.class)
-                        .onErrorMap(ServerWebInputException.class,
-                                error -> new BusinessException(ErrorCode.INVALID_REQUEST, error))
-                        .switchIfEmpty(Mono.error(() -> new BusinessException(ErrorCode.INVALID_REQUEST)))
+                .flatMap(ids -> readBody(serverRequest, CreateProductRequest.class)
                         .map(request -> Product.builder().branchId(ids.getT2()).name(request.name())
                                 .stock(request.stock()).build())
                         .flatMap(product -> addProductUseCase.execute(ids.getT1(), product)))
@@ -140,6 +131,14 @@ public class Handler {
 
     private static ProductResponse toResponse(Product product) {
         return new ProductResponse(product.id(), product.name(), product.stock());
+    }
+
+    /** A body that cannot be parsed, or a missing body, is an invalid request. */
+    private static <T> Mono<T> readBody(ServerRequest serverRequest, Class<T> type) {
+        return serverRequest.bodyToMono(type)
+                .onErrorMap(ServerWebInputException.class,
+                        error -> new BusinessException(ErrorCode.INVALID_REQUEST, error))
+                .switchIfEmpty(Mono.error(() -> new BusinessException(ErrorCode.INVALID_REQUEST)));
     }
 
     private static Mono<UUID> parseId(String value) {
