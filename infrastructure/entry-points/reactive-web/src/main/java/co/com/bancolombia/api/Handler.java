@@ -11,6 +11,7 @@ import co.com.bancolombia.model.branch.Branch;
 import co.com.bancolombia.model.exception.BusinessException;
 import co.com.bancolombia.model.exception.BusinessException.ErrorCode;
 import co.com.bancolombia.model.exception.DomainException;
+import co.com.bancolombia.model.exception.TechnicalException;
 import co.com.bancolombia.model.franchise.Franchise;
 import co.com.bancolombia.model.product.Product;
 import co.com.bancolombia.usecase.addbranch.AddBranchUseCase;
@@ -18,6 +19,7 @@ import co.com.bancolombia.usecase.addproduct.AddProductUseCase;
 import co.com.bancolombia.usecase.createfranchise.CreateFranchiseUseCase;
 import co.com.bancolombia.usecase.deleteproduct.DeleteProductUseCase;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.ServerRequest;
@@ -30,6 +32,7 @@ import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class Handler {
     private static final String INVALID_PREFIX = "INVALID_";
     private static final String NOT_FOUND_SUFFIX = "_NOT_FOUND";
@@ -50,7 +53,7 @@ public class Handler {
                 .flatMap(franchise -> ServerResponse
                         .created(UriComponentsBuilder.fromPath(ApiPaths.FRANCHISE).build(franchise.id()))
                         .bodyValue(new FranchiseResponse(franchise.id(), franchise.name())))
-                .onErrorResume(DomainException.class, this::toErrorResponse);
+                .transform(this::handleDomainErrors);
     }
 
     public Mono<ServerResponse> addBranch(ServerRequest serverRequest) {
@@ -65,7 +68,7 @@ public class Handler {
                         .created(UriComponentsBuilder.fromPath(ApiPaths.BRANCH)
                                 .build(branch.franchiseId(), branch.id()))
                         .bodyValue(new BranchResponse(branch.id(), branch.name())))
-                .onErrorResume(DomainException.class, this::toErrorResponse);
+                .transform(this::handleDomainErrors);
     }
 
     public Mono<ServerResponse> addProduct(ServerRequest serverRequest) {
@@ -83,7 +86,7 @@ public class Handler {
                                 .build(serverRequest.pathVariable(ApiPaths.FRANCHISE_ID), product.branchId(),
                                         product.id()))
                         .bodyValue(new ProductResponse(product.id(), product.name(), product.stock())))
-                .onErrorResume(DomainException.class, this::toErrorResponse);
+                .transform(this::handleDomainErrors);
     }
 
     public Mono<ServerResponse> deleteProduct(ServerRequest serverRequest) {
@@ -92,13 +95,25 @@ public class Handler {
                         parseId(serverRequest.pathVariable(ApiPaths.ID)))
                 .flatMap(ids -> deleteProductUseCase.execute(ids.getT1(), ids.getT2(), ids.getT3()))
                 .then(Mono.defer(() -> ServerResponse.noContent().build()))
-                .onErrorResume(DomainException.class, this::toErrorResponse);
+                .transform(this::handleDomainErrors);
     }
 
     private static Mono<UUID> parseId(String value) {
         return Mono.fromCallable(() -> UUID.fromString(value))
                 .onErrorMap(IllegalArgumentException.class,
                         error -> new BusinessException(ErrorCode.INVALID_REQUEST, error));
+    }
+
+    /** Technical failures are logged before mapping; business failures are expected outcomes and stay unlogged. */
+    private Mono<ServerResponse> handleDomainErrors(Mono<ServerResponse> response) {
+        return response
+                .onErrorResume(TechnicalException.class, this::toTechnicalErrorResponse)
+                .onErrorResume(DomainException.class, this::toErrorResponse);
+    }
+
+    private Mono<ServerResponse> toTechnicalErrorResponse(TechnicalException exception) {
+        log.error("Technical failure: {}", exception.getCode(), exception);
+        return toErrorResponse(exception);
     }
 
     private Mono<ServerResponse> toErrorResponse(DomainException exception) {
