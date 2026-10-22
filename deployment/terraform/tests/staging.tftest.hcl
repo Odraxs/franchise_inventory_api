@@ -18,6 +18,7 @@ variables {
   vpc_cidr            = "10.20.0.0/16"
   az_count            = 2
   enable_nat_gateway  = true
+  enable_budget       = false
 }
 
 run "staging_plan" {
@@ -51,5 +52,10 @@ run "staging_plan" {
   assert {
     condition     = length(module.network.private_subnet_ids) == 2 && length(distinct(module.network.private_subnet_availability_zones)) == 2
     error_message = "staging must plan one private subnet in each of 2 AZs."
+  }
+
+  assert {
+    condition     = length(aws_budgets_budget.monthly_cost) == 0
+    error_message = "staging must not plan the cost budget."
   }
 }

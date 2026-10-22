@@ -10,3 +10,6 @@ ecr_max_image_count = 30
 vpc_cidr           = "10.30.0.0/16"
 az_count           = 2
 enable_nat_gateway = true
+
+# Cost alarm: off. The budget protects the Free plan credits of the dev account only.
+enable_budget = false

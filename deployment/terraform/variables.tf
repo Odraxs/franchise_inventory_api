@@ -60,3 +60,21 @@ variable "enable_nat_gateway" {
   type        = bool
   default     = false
 }
+
+variable "enable_budget" {
+  description = "Create the monthly AWS Budget (USD 20) with email alerts at 50, 80 and 100 percent. True only in dev."
+  type        = bool
+  default     = false
+}
+
+variable "budget_alert_email" {
+  description = "Email address that receives the budget alerts. Never put it in a tfvars file: set it with TF_VAR_budget_alert_email. Required when enable_budget is true."
+  type        = string
+  default     = null
+  sensitive   = true
+
+  validation {
+    condition     = !var.enable_budget || can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.budget_alert_email))
+    error_message = "When enable_budget is true, budget_alert_email must be a valid email address. Set it with TF_VAR_budget_alert_email."
+  }
+}
