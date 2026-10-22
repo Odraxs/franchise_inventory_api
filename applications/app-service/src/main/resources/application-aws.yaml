@@ -1,0 +1,25 @@
+# Cloud profile. The container gets only non-secret variables: SPRING_PROFILES_ACTIVE=aws,
+# DB_SECRET_NAME and AWS_REGION (the SDK region chain reads it; nothing here names a region).
+spring:
+  config:
+    # Reads the DB Secret (JSON with the RDS keys host, port, dbname, username, password) once at startup.
+    # "?prefix=db." prepends "db." to every key, so the secret key "host" becomes "db.host".
+    import: "aws-secretsmanager:${DB_SECRET_NAME}?prefix=db."
+  cloud:
+    aws:
+      secretsmanager:
+        # application.yaml turns the integration off; only this profile needs AWS.
+        enabled: true
+cors:
+  # No frontend is planned, so no cross-origin call is allowed. An empty value binds to an empty list.
+  allowed-origins: ""
+adapters:
+  r2dbc:
+    # Flyway reads the same values through spring.flyway in application.yaml.
+    host: "${db.host}"
+    port: "${db.port}"
+    database: "${db.dbname}"
+    schema: "public"
+    username: "${db.username}"
+    password: "${db.password}"
+    ssl-mode: "require"

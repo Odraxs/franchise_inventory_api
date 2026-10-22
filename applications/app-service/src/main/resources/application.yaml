@@ -11,6 +11,11 @@ spring:
       path: "/h2"
   profiles:
     include: null
+  cloud:
+    aws:
+      secretsmanager:
+        # Off by default, so local runs and tests create no AWS client; the aws profile turns it on.
+        enabled: false
   flyway:
     # Reuses the R2DBC settings, so the local profile and ADAPTERS_R2DBC_* env vars both apply.
     # sslmode follows adapters.r2dbc.ssl-mode, so R2DBC and Flyway use the same SSL mode.
