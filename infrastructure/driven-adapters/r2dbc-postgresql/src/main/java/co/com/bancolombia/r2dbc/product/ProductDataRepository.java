@@ -24,6 +24,14 @@ public interface ProductDataRepository extends ReactiveCrudRepository<ProductDat
                                   @Param("stock") Integer stock);
 
     /**
+     * Sets the name in one statement and returns the updated row, or empty when no active product has this id in
+     * the branch.
+     */
+    @Query("UPDATE product SET name = :name WHERE id = :id AND branch_id = :branchId AND deleted_at IS NULL "
+            + "RETURNING id, branch_id, name, stock")
+    Mono<ProductData> rename(@Param("id") UUID id, @Param("branchId") UUID branchId, @Param("name") String name);
+
+    /**
      * Every branch of the franchise with its active product of highest stock, ties going to the oldest one.
      * The lateral subquery follows ix_product_top_stock; a branch without active products keeps null product columns.
      */

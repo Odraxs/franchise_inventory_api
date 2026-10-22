@@ -29,6 +29,14 @@ public interface ProductGateway {
     Mono<Product> updateStock(UUID id, UUID branchId, Integer stock);
 
     /**
+     * Sets the name of the active Product with this id in the Branch and emits the updated Product, or empty when the
+     * Branch has no active Product with that id.
+     * Fails with a Business Exception coded DUPLICATE_PRODUCT_NAME when another active Product of the Branch has the
+     * name (ignoring case).
+     */
+    Mono<Product> rename(UUID id, UUID branchId, String name);
+
+    /**
      * Emits every Branch of the Franchise with its Top-Stock Product: the active Product with the highest stock,
      * and on a tie the oldest one. A Branch with no active Product has a null topProduct.
      */

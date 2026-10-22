@@ -20,6 +20,7 @@ public class RouterRest {
                 .andRoute(POST(ApiPaths.BRANCHES), handler::addBranch)
                 .andRoute(PATCH(ApiPaths.BRANCH), handler::renameBranch)
                 .andRoute(POST(ApiPaths.PRODUCTS), handler::addProduct)
+                .andRoute(PATCH(ApiPaths.PRODUCT), handler::renameProduct)
                 .andRoute(DELETE(ApiPaths.PRODUCT), handler::deleteProduct)
                 .andRoute(PATCH(ApiPaths.PRODUCT_STOCK), handler::updateProductStock)
                 .andRoute(GET(ApiPaths.TOP_STOCK_PRODUCTS), handler::getTopStockProducts);
