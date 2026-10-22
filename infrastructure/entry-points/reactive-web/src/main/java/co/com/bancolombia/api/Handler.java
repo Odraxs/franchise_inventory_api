@@ -10,6 +10,7 @@ import co.com.bancolombia.api.dto.ProductResponse;
 import co.com.bancolombia.model.branch.Branch;
 import co.com.bancolombia.model.exception.BusinessException;
 import co.com.bancolombia.model.exception.BusinessException.ErrorCode;
+import co.com.bancolombia.model.exception.DomainException;
 import co.com.bancolombia.model.franchise.Franchise;
 import co.com.bancolombia.model.product.Product;
 import co.com.bancolombia.usecase.addbranch.AddBranchUseCase;
@@ -49,7 +50,7 @@ public class Handler {
                 .flatMap(franchise -> ServerResponse
                         .created(UriComponentsBuilder.fromPath(ApiPaths.FRANCHISE).build(franchise.id()))
                         .bodyValue(new FranchiseResponse(franchise.id(), franchise.name())))
-                .onErrorResume(BusinessException.class, this::toErrorResponse);
+                .onErrorResume(DomainException.class, this::toErrorResponse);
     }
 
     public Mono<ServerResponse> addBranch(ServerRequest serverRequest) {
@@ -64,7 +65,7 @@ public class Handler {
                         .created(UriComponentsBuilder.fromPath(ApiPaths.BRANCH)
                                 .build(branch.franchiseId(), branch.id()))
                         .bodyValue(new BranchResponse(branch.id(), branch.name())))
-                .onErrorResume(BusinessException.class, this::toErrorResponse);
+                .onErrorResume(DomainException.class, this::toErrorResponse);
     }
 
     public Mono<ServerResponse> addProduct(ServerRequest serverRequest) {
@@ -82,7 +83,7 @@ public class Handler {
                                 .build(serverRequest.pathVariable(ApiPaths.FRANCHISE_ID), product.branchId(),
                                         product.id()))
                         .bodyValue(new ProductResponse(product.id(), product.name(), product.stock())))
-                .onErrorResume(BusinessException.class, this::toErrorResponse);
+                .onErrorResume(DomainException.class, this::toErrorResponse);
     }
 
     public Mono<ServerResponse> deleteProduct(ServerRequest serverRequest) {
@@ -91,7 +92,7 @@ public class Handler {
                         parseId(serverRequest.pathVariable(ApiPaths.ID)))
                 .flatMap(ids -> deleteProductUseCase.execute(ids.getT1(), ids.getT2(), ids.getT3()))
                 .then(Mono.defer(() -> ServerResponse.noContent().build()))
-                .onErrorResume(BusinessException.class, this::toErrorResponse);
+                .onErrorResume(DomainException.class, this::toErrorResponse);
     }
 
     private static Mono<UUID> parseId(String value) {
@@ -100,14 +101,22 @@ public class Handler {
                         error -> new BusinessException(ErrorCode.INVALID_REQUEST, error));
     }
 
-    private Mono<ServerResponse> toErrorResponse(BusinessException exception) {
+    private Mono<ServerResponse> toErrorResponse(DomainException exception) {
         return ServerResponse
-                .status(statusOf(exception.getErrorCode()))
-                .bodyValue(new ErrorResponse(exception.getErrorCode().name(), exception.getMessage()));
+                .status(statusOf(exception))
+                .bodyValue(new ErrorResponse(exception.getCode(), exception.getMessage()));
+    }
+
+    /** A technical failure is always 503, whatever its code name; a business failure keeps the code-name rules. */
+    private static HttpStatus statusOf(DomainException exception) {
+        if (exception instanceof BusinessException businessException) {
+            return businessStatusOf(businessException.getErrorCode());
+        }
+        return HttpStatus.SERVICE_UNAVAILABLE;
     }
 
     /** The code name sets the status: invalid values 400, not found 404, duplicates 409, others 422. */
-    private static HttpStatus statusOf(ErrorCode errorCode) {
+    private static HttpStatus businessStatusOf(ErrorCode errorCode) {
         String name = errorCode.name();
         if (name.startsWith(INVALID_PREFIX)) {
             return HttpStatus.BAD_REQUEST;
