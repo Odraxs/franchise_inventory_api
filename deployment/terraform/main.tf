@@ -18,3 +18,12 @@ module "ecr" {
   force_delete    = var.ecr_force_delete
   max_image_count = var.ecr_max_image_count
 }
+
+module "network" {
+  source = "./modules/network"
+
+  name_prefix        = local.name_prefix
+  vpc_cidr           = var.vpc_cidr
+  az_count           = var.az_count
+  enable_nat_gateway = var.enable_nat_gateway
+}

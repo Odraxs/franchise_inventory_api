@@ -8,6 +8,13 @@ mock_provider "aws" {
       repository_url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/franchise-inventory-dev-api"
     }
   }
+
+  # The mocked data source returns no AZ names by default. The network module needs some.
+  mock_data "aws_availability_zones" {
+    defaults = {
+      names = ["us-east-1a", "us-east-1b", "us-east-1c"]
+    }
+  }
 }
 
 variables {

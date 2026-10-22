@@ -42,3 +42,21 @@ variable "ecr_max_image_count" {
   type        = number
   default     = 10
 }
+
+variable "vpc_cidr" {
+  description = "IPv4 CIDR block of the Environment's VPC. Each Environment uses its own block, so the VPCs never overlap if they are peered later."
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "az_count" {
+  description = "Number of Availability Zones for the VPC subnets. The ALB and the RDS subnet group need at least 2."
+  type        = number
+  default     = 2
+}
+
+variable "enable_nat_gateway" {
+  description = "Create one NAT Gateway so the private subnets can reach the internet. It is billed per hour, so dev keeps it off and runs tasks in public subnets."
+  type        = bool
+  default     = false
+}
