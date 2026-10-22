@@ -6,8 +6,10 @@ import lombok.Getter;
 public class BusinessException extends RuntimeException {
 
     public enum ErrorCode {
+        INVALID_REQUEST("The request is malformed or has a field of the wrong type"),
         INVALID_FRANCHISE_NAME("The franchise name must not be blank and must have at most 100 characters"),
-        DUPLICATE_FRANCHISE_NAME("A franchise with this name already exists");
+        DUPLICATE_FRANCHISE_NAME("A franchise with this name already exists"),
+        FRANCHISE_NOT_FOUND("The franchise does not exist");
 
         private final String message;
 
