@@ -35,3 +35,4 @@ adapters:
     schema: "public"
     username: "postgres"
     password: "postgres"
+    ssl-mode: "disable"

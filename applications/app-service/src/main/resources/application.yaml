@@ -12,8 +12,9 @@ spring:
   profiles:
     include: null
   flyway:
-    # Reuses the R2DBC settings, so the local profile and ADAPTERS_R2DBC_* env vars both apply
-    url: "jdbc:postgresql://${adapters.r2dbc.host}:${adapters.r2dbc.port}/${adapters.r2dbc.database}"
+    # Reuses the R2DBC settings, so the local profile and ADAPTERS_R2DBC_* env vars both apply.
+    # sslmode follows adapters.r2dbc.ssl-mode, so R2DBC and Flyway use the same SSL mode.
+    url: "jdbc:postgresql://${adapters.r2dbc.host}:${adapters.r2dbc.port}/${adapters.r2dbc.database}?sslmode=${adapters.r2dbc.ssl-mode:disable}"
     user: "${adapters.r2dbc.username}"
     password: "${adapters.r2dbc.password}"
     schemas: "${adapters.r2dbc.schema:public}"
@@ -89,4 +90,6 @@ adapters:
     database: 
     schema:
     username: 
-    password: 
+    password:
+    # libpq/JDBC spelling (disable, require, verify-full, ...); also sets sslmode on the Flyway JDBC URL
+    ssl-mode: "disable"
