@@ -39,40 +39,16 @@ class AddBranchUseCaseTest {
     }
 
     @Test
-    void savesBranchWithStrippedNameInTheFranchiseAndEmitsIt() {
+    void savesBranchInTheFranchiseAndEmitsItWithItsGeneratedId() {
         UUID id = UUID.randomUUID();
         when(franchiseGateway.existsById(FRANCHISE_ID)).thenReturn(Mono.just(true));
         when(branchGateway.save(any(Branch.class)))
                 .thenAnswer(invocation -> Mono.just(((Branch) invocation.getArgument(0)).toBuilder().id(id).build()));
 
-        StepVerifier.create(useCase.execute(Branch.builder().franchiseId(FRANCHISE_ID).name("  Centro  ").build()))
+        StepVerifier.create(useCase.execute(Branch.builder().franchiseId(FRANCHISE_ID).name("Centro").build()))
                 .expectNextMatches(saved -> id.equals(saved.id()) && "Centro".equals(saved.name())
                         && FRANCHISE_ID.equals(saved.franchiseId()))
                 .verifyComplete();
-    }
-
-    @Test
-    void acceptsNameWithMaximumLength() {
-        String name = "a".repeat(AddBranchUseCase.MAX_NAME_LENGTH);
-        when(franchiseGateway.existsById(FRANCHISE_ID)).thenReturn(Mono.just(true));
-        when(branchGateway.save(any(Branch.class))).thenReturn(Mono.just(Branch.builder().name(name).build()));
-
-        StepVerifier.create(useCase.execute(Branch.builder().franchiseId(FRANCHISE_ID).name(name).build()))
-                .expectNextCount(1)
-                .verifyComplete();
-    }
-
-    @Test
-    void rejectsNullBlankAndTooLongNamesWithoutCallingTheGateways() {
-        String tooLong = "a".repeat(AddBranchUseCase.MAX_NAME_LENGTH + 1);
-
-        for (String name : new String[]{null, "", "   ", tooLong}) {
-            StepVerifier.create(useCase.execute(Branch.builder().franchiseId(FRANCHISE_ID).name(name).build()))
-                    .expectErrorMatches(error -> error instanceof BusinessException exception
-                            && exception.getErrorCode() == ErrorCode.INVALID_BRANCH_NAME)
-                    .verify();
-        }
-        verifyNoInteractions(franchiseGateway, branchGateway);
     }
 
     @Test

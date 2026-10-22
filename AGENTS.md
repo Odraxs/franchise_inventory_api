@@ -30,7 +30,7 @@ Infrastructure modules never depend on `app-service` or on each other.
 
 **Driven adapters**
 - An adapter implements a model gateway and owns its persistence types (`*Data` entity, Spring Data repository).
-- Map persistence types to domain models inside the adapter. Domain models stay free of persistence annotations.
+- Map persistence types to domain models inside the adapter.
 
 **Entry points**
 - `RouterRest` maps routes; `Handler` parses the request, calls a use case, and builds the response.

@@ -24,6 +24,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ContextConfiguration(classes = {RouterRest.class, Handler.class, JacksonConfig.class})
@@ -167,6 +168,24 @@ class RouterRestTest {
                 .expectStatus().isEqualTo(status)
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(errorCode.name());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "   ", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
+    void addBranchReturns400InvalidBranchNameWithoutCallingTheUseCase(String name) {
+        postBranch(UUID.randomUUID().toString(), Map.of("name", name))
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_BRANCH_NAME");
+        verifyNoInteractions(addBranchUseCase);
+    }
+
+    @Test
+    void addBranchReturns400InvalidBranchNameForMissingName() {
+        postBranch(UUID.randomUUID().toString(), "{}")
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_BRANCH_NAME");
     }
 
     @Test
