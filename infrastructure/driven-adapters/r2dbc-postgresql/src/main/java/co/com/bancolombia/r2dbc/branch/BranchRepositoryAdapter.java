@@ -4,6 +4,7 @@ import co.com.bancolombia.model.branch.Branch;
 import co.com.bancolombia.model.branch.gateways.BranchGateway;
 import co.com.bancolombia.model.exception.BusinessException;
 import co.com.bancolombia.model.exception.BusinessException.ErrorCode;
+import co.com.bancolombia.r2dbc.resilience.DatabaseResilience;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
@@ -16,11 +17,12 @@ import java.util.UUID;
 public class BranchRepositoryAdapter implements BranchGateway {
 
     private final BranchDataRepository repository;
+    private final DatabaseResilience resilience;
 
     /** uq_branch_franchise_name rejects a name already taken in the franchise (ignoring case). */
     @Override
     public Mono<Branch> save(Branch branch) {
-        return repository.save(toData(branch))
+        return resilience.nonIdempotent(repository.save(toData(branch)))
                 .map(BranchRepositoryAdapter::toEntity)
                 .onErrorMap(DuplicateKeyException.class,
                         error -> new BusinessException(ErrorCode.DUPLICATE_BRANCH_NAME, error));
@@ -28,7 +30,7 @@ public class BranchRepositoryAdapter implements BranchGateway {
 
     @Override
     public Mono<Boolean> existsByIdAndFranchiseId(UUID id, UUID franchiseId) {
-        return repository.existsByIdAndFranchiseId(id, franchiseId);
+        return resilience.idempotent(repository.existsByIdAndFranchiseId(id, franchiseId));
     }
 
     private static BranchData toData(Branch branch) {

@@ -66,6 +66,8 @@ Apply the full set to outbound calls (database, external services):
 - **Circuit Breaker**: opens after repeated failures.
 - **Timeout**: limits the maximum wait time of each operation.
 - **Retry**: retries failed operations with a configured backoff.
+- Wrap every database call with the shared `DatabaseResilience` component.
+- Choose `idempotent` or `nonIdempotent` by whether the call is safe to repeat (an INSERT is not).
 
 Use the Resilience4j Reactor operators (`transformDeferred(CircuitBreakerOperator.of(...))`, etc.) and keep their settings in `application*.yaml`.
 

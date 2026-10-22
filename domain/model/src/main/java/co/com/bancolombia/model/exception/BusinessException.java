@@ -3,7 +3,7 @@ package co.com.bancolombia.model.exception;
 import lombok.Getter;
 
 @Getter
-public class BusinessException extends RuntimeException {
+public class BusinessException extends DomainException {
 
     public enum ErrorCode {
         INVALID_REQUEST("The request is malformed or has a field of the wrong type"),
@@ -28,12 +28,12 @@ public class BusinessException extends RuntimeException {
     private final ErrorCode errorCode;
 
     public BusinessException(ErrorCode errorCode) {
-        super(errorCode.message);
+        super(errorCode.name(), errorCode.message);
         this.errorCode = errorCode;
     }
 
     public BusinessException(ErrorCode errorCode, Throwable cause) {
-        super(errorCode.message, cause);
+        super(errorCode.name(), errorCode.message, cause);
         this.errorCode = errorCode;
     }
 }

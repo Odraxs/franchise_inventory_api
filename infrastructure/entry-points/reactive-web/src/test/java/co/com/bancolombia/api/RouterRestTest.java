@@ -4,6 +4,7 @@ import co.com.bancolombia.api.config.JacksonConfig;
 import co.com.bancolombia.model.branch.Branch;
 import co.com.bancolombia.model.exception.BusinessException;
 import co.com.bancolombia.model.exception.BusinessException.ErrorCode;
+import co.com.bancolombia.model.exception.TechnicalException;
 import co.com.bancolombia.model.franchise.Franchise;
 import co.com.bancolombia.model.product.Product;
 import co.com.bancolombia.usecase.addproduct.AddProductUseCase;
@@ -121,6 +122,18 @@ class RouterRestTest {
     }
 
     @Test
+    void createFranchiseReturns503WithDatabaseUnavailableWhenTheUseCaseFailsForATechnicalReason() {
+        when(createFranchiseUseCase.execute(any(Franchise.class)))
+                .thenReturn(Mono.error(new TechnicalException(TechnicalException.ErrorCode.DATABASE_UNAVAILABLE)));
+
+        postFranchise(Map.of("name", "Nequi"))
+                .expectStatus().isEqualTo(503)
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("DATABASE_UNAVAILABLE")
+                .jsonPath("$.message").isEqualTo("The database is unavailable, try again later");
+    }
+
+    @Test
     void createFranchiseReturns400InvalidRequestForMalformedJson() {
         postFranchise("{\"name\": ")
                 .expectStatus().isBadRequest()
@@ -178,6 +191,17 @@ class RouterRestTest {
                 .expectStatus().isEqualTo(status)
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(errorCode.name());
+    }
+
+    @Test
+    void addBranchReturns503WithDatabaseUnavailableWhenTheUseCaseFailsForATechnicalReason() {
+        when(addBranchUseCase.execute(any(Branch.class)))
+                .thenReturn(Mono.error(new TechnicalException(TechnicalException.ErrorCode.DATABASE_UNAVAILABLE)));
+
+        postBranch(UUID.randomUUID().toString(), Map.of("name", "Centro"))
+                .expectStatus().isEqualTo(503)
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("DATABASE_UNAVAILABLE");
     }
 
     @ParameterizedTest
@@ -270,6 +294,17 @@ class RouterRestTest {
                 .jsonPath("$.code").isEqualTo(errorCode.name());
     }
 
+    @Test
+    void addProductReturns503WithDatabaseUnavailableWhenTheUseCaseFailsForATechnicalReason() {
+        when(addProductUseCase.execute(any(UUID.class), any(Product.class)))
+                .thenReturn(Mono.error(new TechnicalException(TechnicalException.ErrorCode.DATABASE_UNAVAILABLE)));
+
+        postProduct(UUID.randomUUID().toString(), UUID.randomUUID().toString(), "{\"name\": \"Cola\", \"stock\": 1}")
+                .expectStatus().isEqualTo(503)
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("DATABASE_UNAVAILABLE");
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"{\"stock\": 1}", "{\"name\": \" \", \"stock\": 1}"})
     void addProductReturns400InvalidProductNameWithoutCallingTheUseCase(String body) {
@@ -354,6 +389,17 @@ class RouterRestTest {
                 .expectStatus().isEqualTo(status)
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(errorCode.name());
+    }
+
+    @Test
+    void deleteProductReturns503WithDatabaseUnavailableWhenTheUseCaseFailsForATechnicalReason() {
+        when(deleteProductUseCase.execute(any(UUID.class), any(UUID.class), any(UUID.class)))
+                .thenReturn(Mono.error(new TechnicalException(TechnicalException.ErrorCode.DATABASE_UNAVAILABLE)));
+
+        deleteProduct(UUID.randomUUID().toString(), UUID.randomUUID().toString(), UUID.randomUUID().toString())
+                .expectStatus().isEqualTo(503)
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("DATABASE_UNAVAILABLE");
     }
 
     @Test
