@@ -82,7 +82,17 @@ class RouterRestTest {
     }
 
     @Test
-    void notFoundErrorCodeReturns404() {
+    void createFranchiseReturns400InvalidRequestForMissingBodyWithoutContentType() {
+        webTestClient.post()
+                .uri("/franchises")
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_REQUEST");
+    }
+
+    @Test
+    void createFranchiseReturns404ForNotFoundErrorCode() {
         when(createFranchiseUseCase.execute(any(Franchise.class)))
                 .thenReturn(Mono.error(new BusinessException(ErrorCode.FRANCHISE_NOT_FOUND)));
 
@@ -95,7 +105,7 @@ class RouterRestTest {
 
     @Test
     void createFranchiseReturns400InvalidRequestForMalformedJson() {
-        postRawFranchise("{\"name\": ")
+        postFranchise("{\"name\": ")
                 .expectStatus().isBadRequest()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo("INVALID_REQUEST")
@@ -105,22 +115,14 @@ class RouterRestTest {
     @ParameterizedTest
     @ValueSource(strings = {"123", "1.5", "true", "{}", "[]"})
     void createFranchiseReturns400InvalidRequestForNonStringName(String name) {
-        postRawFranchise("{\"name\": " + name + "}")
+        postFranchise("{\"name\": " + name + "}")
                 .expectStatus().isBadRequest()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo("INVALID_REQUEST");
     }
 
-    private WebTestClient.ResponseSpec postRawFranchise(String body) {
-        return webTestClient.post()
-                .uri("/franchises")
-                .contentType(MediaType.APPLICATION_JSON)
-                .accept(MediaType.APPLICATION_JSON)
-                .bodyValue(body)
-                .exchange();
-    }
-
-    private WebTestClient.ResponseSpec postFranchise(Map<String, String> body) {
+    /** A String body is sent as raw JSON text; a Map is serialized. */
+    private WebTestClient.ResponseSpec postFranchise(Object body) {
         return webTestClient.post()
                 .uri("/franchises")
                 .contentType(MediaType.APPLICATION_JSON)
