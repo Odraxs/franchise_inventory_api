@@ -13,6 +13,7 @@ public class RouterRest {
     @Bean
     public RouterFunction<ServerResponse> routerFunction(Handler handler) {
         return route(POST(ApiPaths.FRANCHISES), handler::createFranchise)
-                .andRoute(POST(ApiPaths.BRANCHES), handler::addBranch);
+                .andRoute(POST(ApiPaths.BRANCHES), handler::addBranch)
+                .andRoute(POST(ApiPaths.PRODUCTS), handler::addProduct);
     }
 }

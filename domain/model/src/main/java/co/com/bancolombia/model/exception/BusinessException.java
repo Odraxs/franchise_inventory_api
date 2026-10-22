@@ -11,7 +11,11 @@ public class BusinessException extends RuntimeException {
         DUPLICATE_FRANCHISE_NAME("A franchise with this name already exists"),
         FRANCHISE_NOT_FOUND("The franchise does not exist"),
         INVALID_BRANCH_NAME("The branch name must not be blank and must have at most 100 characters"),
-        DUPLICATE_BRANCH_NAME("A branch with this name already exists in the franchise");
+        DUPLICATE_BRANCH_NAME("A branch with this name already exists in the franchise"),
+        BRANCH_NOT_FOUND("The branch does not exist in the franchise"),
+        INVALID_PRODUCT_NAME("The product name must not be blank and must have at most 100 characters"),
+        INVALID_STOCK("The stock must be an integer from 0 to 2147483647"),
+        DUPLICATE_PRODUCT_NAME("A product with this name already exists in the branch");
 
         private final String message;
 

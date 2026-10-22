@@ -5,6 +5,8 @@ import co.com.bancolombia.model.branch.Branch;
 import co.com.bancolombia.model.exception.BusinessException;
 import co.com.bancolombia.model.exception.BusinessException.ErrorCode;
 import co.com.bancolombia.model.franchise.Franchise;
+import co.com.bancolombia.model.product.Product;
+import co.com.bancolombia.usecase.addproduct.AddProductUseCase;
 import co.com.bancolombia.usecase.addbranch.AddBranchUseCase;
 import co.com.bancolombia.usecase.createfranchise.CreateFranchiseUseCase;
 import org.junit.jupiter.api.Test;
@@ -24,6 +26,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -39,6 +42,9 @@ class RouterRestTest {
 
     @MockitoBean
     private AddBranchUseCase addBranchUseCase;
+
+    @MockitoBean
+    private AddProductUseCase addProductUseCase;
 
     @Test
     void createFranchiseReturns201WithLocationAndBody() {
@@ -221,6 +227,110 @@ class RouterRestTest {
                 .expectStatus().isBadRequest()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo("INVALID_REQUEST");
+    }
+
+    @Test
+    void addProductReturns201WithLocationAndBody() {
+        UUID franchiseId = UUID.randomUUID();
+        UUID branchId = UUID.randomUUID();
+        UUID id = UUID.randomUUID();
+        when(addProductUseCase.execute(eq(franchiseId), argThat(product -> branchId.equals(product.branchId())
+                && "Cola".equals(product.name()) && product.stock() == 0)))
+                .thenReturn(Mono.just(Product.builder().id(id).branchId(branchId).name("Cola").stock(0).build()));
+
+        postProduct(franchiseId.toString(), branchId.toString(), "{\"name\": \"Cola\", \"stock\": 0}")
+                .expectStatus().isCreated()
+                .expectHeader().location("/franchises/" + franchiseId + "/branches/" + branchId + "/products/" + id)
+                .expectBody()
+                .jsonPath("$.id").isEqualTo(id.toString())
+                .jsonPath("$.name").isEqualTo("Cola")
+                .jsonPath("$.stock").isEqualTo(0)
+                .jsonPath("$.branchId").doesNotExist();
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "INVALID_PRODUCT_NAME, 400",
+            "INVALID_STOCK, 400",
+            "FRANCHISE_NOT_FOUND, 404",
+            "BRANCH_NOT_FOUND, 404",
+            "DUPLICATE_PRODUCT_NAME, 409"
+    })
+    void addProductMapsBusinessErrorsToStatusAndCode(ErrorCode errorCode, int status) {
+        when(addProductUseCase.execute(any(UUID.class), any(Product.class)))
+                .thenReturn(Mono.error(new BusinessException(errorCode)));
+
+        postProduct(UUID.randomUUID().toString(), UUID.randomUUID().toString(), "{\"name\": \"Cola\", \"stock\": 1}")
+                .expectStatus().isEqualTo(status)
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(errorCode.name());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{\"stock\": 1}", "{\"name\": \" \", \"stock\": 1}"})
+    void addProductReturns400InvalidProductNameWithoutCallingTheUseCase(String body) {
+        postProduct(UUID.randomUUID().toString(), UUID.randomUUID().toString(), body)
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_PRODUCT_NAME");
+        verifyNoInteractions(addProductUseCase);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{\"name\": \"Cola\"}", "{\"name\": \"Cola\", \"stock\": null}",
+            "{\"name\": \"Cola\", \"stock\": -1}"})
+    void addProductReturns400InvalidStockWithoutCallingTheUseCase(String body) {
+        postProduct(UUID.randomUUID().toString(), UUID.randomUUID().toString(), body)
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_STOCK");
+        verifyNoInteractions(addProductUseCase);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"1.5", "\"abc\"", "\"5\"", "true", "{}", "[]", "2147483648", "99999999999999999999"})
+    void addProductReturns400InvalidRequestForWrongStockType(String stock) {
+        postProduct(UUID.randomUUID().toString(), UUID.randomUUID().toString(),
+                "{\"name\": \"Cola\", \"stock\": " + stock + "}")
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_REQUEST");
+        verifyNoInteractions(addProductUseCase);
+    }
+
+    @Test
+    void addProductReturns400InvalidRequestForMalformedIds() {
+        postProduct("not-a-uuid", UUID.randomUUID().toString(), "{\"name\": \"Cola\", \"stock\": 1}")
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_REQUEST");
+        postProduct(UUID.randomUUID().toString(), "not-a-uuid", "{\"name\": \"Cola\", \"stock\": 1}")
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_REQUEST");
+    }
+
+    @Test
+    void addProductReturns400InvalidRequestForMalformedJsonAndMissingBody() {
+        postProduct(UUID.randomUUID().toString(), UUID.randomUUID().toString(), "{\"name\": ")
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_REQUEST");
+        webTestClient.post()
+                .uri("/franchises/{franchiseId}/branches/{branchId}/products", UUID.randomUUID(), UUID.randomUUID())
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_REQUEST");
+    }
+
+    private WebTestClient.ResponseSpec postProduct(String franchiseId, String branchId, Object body) {
+        return webTestClient.post()
+                .uri("/franchises/{franchiseId}/branches/{branchId}/products", franchiseId, branchId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .bodyValue(body)
+                .exchange();
     }
 
     private WebTestClient.ResponseSpec postBranch(String franchiseId, Object body) {

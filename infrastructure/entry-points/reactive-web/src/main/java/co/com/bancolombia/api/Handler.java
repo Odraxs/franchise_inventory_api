@@ -4,12 +4,16 @@ import co.com.bancolombia.api.dto.BranchResponse;
 import co.com.bancolombia.api.dto.CreateBranchRequest;
 import co.com.bancolombia.api.dto.CreateFranchiseRequest;
 import co.com.bancolombia.api.dto.ErrorResponse;
+import co.com.bancolombia.api.dto.CreateProductRequest;
 import co.com.bancolombia.api.dto.FranchiseResponse;
+import co.com.bancolombia.api.dto.ProductResponse;
 import co.com.bancolombia.model.branch.Branch;
 import co.com.bancolombia.model.exception.BusinessException;
 import co.com.bancolombia.model.exception.BusinessException.ErrorCode;
 import co.com.bancolombia.model.franchise.Franchise;
+import co.com.bancolombia.model.product.Product;
 import co.com.bancolombia.usecase.addbranch.AddBranchUseCase;
+import co.com.bancolombia.usecase.addproduct.AddProductUseCase;
 import co.com.bancolombia.usecase.createfranchise.CreateFranchiseUseCase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -31,6 +35,7 @@ public class Handler {
 
     private final CreateFranchiseUseCase createFranchiseUseCase;
     private final AddBranchUseCase addBranchUseCase;
+    private final AddProductUseCase addProductUseCase;
 
     public Mono<ServerResponse> createFranchise(ServerRequest serverRequest) {
         return serverRequest.bodyToMono(CreateFranchiseRequest.class)
@@ -57,6 +62,24 @@ public class Handler {
                         .created(UriComponentsBuilder.fromPath(ApiPaths.BRANCH)
                                 .build(branch.franchiseId(), branch.id()))
                         .bodyValue(new BranchResponse(branch.id(), branch.name())))
+                .onErrorResume(BusinessException.class, this::toErrorResponse);
+    }
+
+    public Mono<ServerResponse> addProduct(ServerRequest serverRequest) {
+        return Mono.zip(parseId(serverRequest.pathVariable(ApiPaths.FRANCHISE_ID)),
+                        parseId(serverRequest.pathVariable(ApiPaths.BRANCH_ID)))
+                .flatMap(ids -> serverRequest.bodyToMono(CreateProductRequest.class)
+                        .onErrorMap(ServerWebInputException.class,
+                                error -> new BusinessException(ErrorCode.INVALID_REQUEST, error))
+                        .switchIfEmpty(Mono.error(() -> new BusinessException(ErrorCode.INVALID_REQUEST)))
+                        .map(request -> Product.builder().branchId(ids.getT2()).name(request.name())
+                                .stock(request.stock()).build())
+                        .flatMap(product -> addProductUseCase.execute(ids.getT1(), product)))
+                .flatMap(product -> ServerResponse
+                        .created(UriComponentsBuilder.fromPath(ApiPaths.PRODUCT)
+                                .build(serverRequest.pathVariable(ApiPaths.FRANCHISE_ID), product.branchId(),
+                                        product.id()))
+                        .bodyValue(new ProductResponse(product.id(), product.name(), product.stock())))
                 .onErrorResume(BusinessException.class, this::toErrorResponse);
     }
 

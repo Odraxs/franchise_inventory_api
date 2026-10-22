@@ -18,4 +18,13 @@ public class JacksonConfig {
                 .setCoercion(CoercionInputShape.Float, CoercionAction.Fail)
                 .setCoercion(CoercionInputShape.Boolean, CoercionAction.Fail));
     }
+
+    /** A whole-number field rejects decimals, text and booleans, so a wrong field type becomes a decoding error. */
+    @Bean
+    JsonMapperBuilderCustomizer strictIntegerCoercion() {
+        return builder -> builder.withCoercionConfig(LogicalType.Integer, config -> config
+                .setCoercion(CoercionInputShape.Float, CoercionAction.Fail)
+                .setCoercion(CoercionInputShape.String, CoercionAction.Fail)
+                .setCoercion(CoercionInputShape.Boolean, CoercionAction.Fail));
+    }
 }
