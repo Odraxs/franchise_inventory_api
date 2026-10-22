@@ -95,8 +95,7 @@ public class Handler {
                         .created(UriComponentsBuilder.fromPath(ApiPaths.PRODUCT)
                                 .build(serverRequest.pathVariable(ApiPaths.FRANCHISE_ID), product.branchId(),
                                         product.id()))
-                        .bodyValue(ProductResponse.builder().id(product.id()).name(product.name())
-                                .stock(product.stock()).build()))
+                        .bodyValue(toResponse(product)))
                 .transform(this::handleDomainErrors);
     }
 
@@ -119,9 +118,7 @@ public class Handler {
                         .switchIfEmpty(Mono.error(() -> new BusinessException(ErrorCode.INVALID_REQUEST)))
                         .flatMap(request -> updateProductStockUseCase.execute(ids.getT1(), ids.getT2(), ids.getT3(),
                                 request.stock())))
-                .flatMap(product -> ServerResponse.ok()
-                        .bodyValue(ProductResponse.builder().id(product.id()).name(product.name())
-                                .stock(product.stock()).build()))
+                .flatMap(product -> ServerResponse.ok().bodyValue(toResponse(product)))
                 .transform(this::handleDomainErrors);
     }
 
@@ -133,14 +130,16 @@ public class Handler {
                         .collectList()
                         .map(branches -> new TopStockReportResponse(report.franchiseId(), branches)))
                 .flatMap(response -> ServerResponse.ok().bodyValue(response))
-                .onErrorResume(BusinessException.class, this::toErrorResponse);
+                .transform(this::handleDomainErrors);
     }
 
     private static BranchTopStockResponse toResponse(BranchTopStock branch) {
         return new BranchTopStockResponse(branch.branchId(), branch.branchName(),
-                Optional.ofNullable(branch.topProduct())
-                        .map(product -> new ProductResponse(product.id(), product.name(), product.stock()))
-                        .orElse(null));
+                Optional.ofNullable(branch.topProduct()).map(Handler::toResponse).orElse(null));
+    }
+
+    private static ProductResponse toResponse(Product product) {
+        return new ProductResponse(product.id(), product.name(), product.stock());
     }
 
     private static Mono<UUID> parseId(String value) {

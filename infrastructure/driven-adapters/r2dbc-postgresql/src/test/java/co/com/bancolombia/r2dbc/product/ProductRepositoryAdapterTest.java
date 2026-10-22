@@ -1,9 +1,9 @@
 package co.com.bancolombia.r2dbc.product;
 
 import co.com.bancolombia.model.exception.BusinessException;
-import co.com.bancolombia.model.product.BranchTopStock;
 import co.com.bancolombia.model.exception.BusinessException.ErrorCode;
 import co.com.bancolombia.model.exception.TechnicalException;
+import co.com.bancolombia.model.product.BranchTopStock;
 import co.com.bancolombia.model.product.Product;
 import co.com.bancolombia.r2dbc.resilience.DatabaseResilienceFixture;
 import org.junit.jupiter.api.BeforeEach;
