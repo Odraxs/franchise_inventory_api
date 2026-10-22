@@ -73,6 +73,35 @@ class FranchiseRepositoryAdapterTest {
     }
 
     @Test
+    void renameEmitsTheUpdatedFranchise() {
+        UUID id = UUID.randomUUID();
+        when(repository.rename(id, "Nequi")).thenReturn(Mono.just(new FranchiseData(id, "Nequi")));
+
+        StepVerifier.create(adapter.rename(id, "Nequi"))
+                .expectNextMatches(franchise -> id.equals(franchise.id()) && "Nequi".equals(franchise.name()))
+                .verifyComplete();
+    }
+
+    @Test
+    void renameEmitsEmptyWhenNoRowMatches() {
+        UUID id = UUID.randomUUID();
+        when(repository.rename(id, "Nequi")).thenReturn(Mono.empty());
+
+        StepVerifier.create(adapter.rename(id, "Nequi")).verifyComplete();
+    }
+
+    @Test
+    void renameMapsDuplicateKeyToDuplicateFranchiseName() {
+        UUID id = UUID.randomUUID();
+        when(repository.rename(id, "Nequi")).thenReturn(Mono.error(new DuplicateKeyException("uq_franchise_name")));
+
+        StepVerifier.create(adapter.rename(id, "Nequi"))
+                .expectErrorMatches(error -> error instanceof BusinessException exception
+                        && exception.getErrorCode() == ErrorCode.DUPLICATE_FRANCHISE_NAME)
+                .verify();
+    }
+
+    @Test
     void existsByIdEmitsTheRepositoryAnswer() {
         UUID id = UUID.randomUUID();
         when(repository.existsById(id)).thenReturn(Mono.just(true));

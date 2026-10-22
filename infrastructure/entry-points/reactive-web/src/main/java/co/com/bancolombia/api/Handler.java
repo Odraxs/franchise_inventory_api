@@ -9,6 +9,7 @@ import co.com.bancolombia.api.dto.CreateProductRequest;
 import co.com.bancolombia.api.dto.FranchiseResponse;
 import co.com.bancolombia.api.dto.ProductResponse;
 import co.com.bancolombia.api.dto.UpdateStockRequest;
+import co.com.bancolombia.api.dto.RenameFranchiseRequest;
 import co.com.bancolombia.api.dto.TopStockReportResponse;
 import co.com.bancolombia.model.branch.Branch;
 import co.com.bancolombia.model.exception.BusinessException;
@@ -24,6 +25,7 @@ import co.com.bancolombia.usecase.createfranchise.CreateFranchiseUseCase;
 import co.com.bancolombia.usecase.deleteproduct.DeleteProductUseCase;
 import co.com.bancolombia.usecase.updateproductstock.UpdateProductStockUseCase;
 import co.com.bancolombia.usecase.gettopstockreport.GetTopStockReportUseCase;
+import co.com.bancolombia.usecase.renamefranchise.RenameFranchiseUseCase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -52,6 +54,7 @@ public class Handler {
     private final DeleteProductUseCase deleteProductUseCase;
     private final UpdateProductStockUseCase updateProductStockUseCase;
     private final GetTopStockReportUseCase getTopStockReportUseCase;
+    private final RenameFranchiseUseCase renameFranchiseUseCase;
 
     public Mono<ServerResponse> createFranchise(ServerRequest serverRequest) {
         return readBody(serverRequest, CreateFranchiseRequest.class)
@@ -59,6 +62,16 @@ public class Handler {
                 .flatMap(createFranchiseUseCase::execute)
                 .flatMap(franchise -> ServerResponse
                         .created(UriComponentsBuilder.fromPath(ApiPaths.FRANCHISE).build(franchise.id()))
+                        .bodyValue(FranchiseResponse.builder().id(franchise.id()).name(franchise.name()).build()))
+                .transform(this::handleDomainErrors);
+    }
+
+    public Mono<ServerResponse> renameFranchise(ServerRequest serverRequest) {
+        return parseId(serverRequest.pathVariable(ApiPaths.ID))
+                .flatMap(id -> readBody(serverRequest, RenameFranchiseRequest.class)
+                        .map(request -> Franchise.builder().id(id).name(request.name()).build()))
+                .flatMap(renameFranchiseUseCase::execute)
+                .flatMap(franchise -> ServerResponse.ok()
                         .bodyValue(FranchiseResponse.builder().id(franchise.id()).name(franchise.name()).build()))
                 .transform(this::handleDomainErrors);
     }

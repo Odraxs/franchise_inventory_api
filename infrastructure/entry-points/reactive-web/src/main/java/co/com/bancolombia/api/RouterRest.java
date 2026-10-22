@@ -16,6 +16,7 @@ public class RouterRest {
     @Bean
     public RouterFunction<ServerResponse> routerFunction(Handler handler) {
         return route(POST(ApiPaths.FRANCHISES), handler::createFranchise)
+                .andRoute(PATCH(ApiPaths.FRANCHISE), handler::renameFranchise)
                 .andRoute(POST(ApiPaths.BRANCHES), handler::addBranch)
                 .andRoute(POST(ApiPaths.PRODUCTS), handler::addProduct)
                 .andRoute(DELETE(ApiPaths.PRODUCT), handler::deleteProduct)
