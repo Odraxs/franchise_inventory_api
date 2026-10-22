@@ -145,6 +145,21 @@ class DatabaseResilienceTest {
     }
 
     @Test
+    void idempotentFluxDropsTheRowsOfAFailedAttemptWhenItRetries() {
+        Iterator<Flux<String>> answers = List.of(
+                Flux.just("partial").concatWith(Flux.never()),
+                Flux.just("first", "second")).iterator();
+        Flux<String> call = Flux.defer(answers::next);
+
+        StepVerifier.withVirtualTime(() -> resilience.idempotent(call))
+                .expectSubscription()
+                .thenAwait(TIMEOUT)
+                .thenAwait(ALL_BACKOFFS)
+                .expectNext("first", "second")
+                .verifyComplete();
+    }
+
+    @Test
     void idempotentPassesABusinessErrorThroughWithoutRetrying() {
         PublisherProbe<String> failing = PublisherProbe.of(Mono.error(
                 new BusinessException(BusinessException.ErrorCode.INVALID_FRANCHISE_NAME)));

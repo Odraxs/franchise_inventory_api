@@ -39,14 +39,12 @@ public class DatabaseResilience {
         return protect(call, DATABASE_IDEMPOTENT);
     }
 
-    /** For a multi-row read: the Timeout covers the whole stream, and a retry re-reads it from the start. */
+    /**
+     * For a multi-row read: the Timeout covers the whole stream and a retry re-reads it from the start. Each attempt
+     * is buffered and its rows are emitted only once it completes, so a failed attempt never leaks partial rows.
+     */
     public <T> Flux<T> idempotent(Flux<T> call) {
-        return call
-                .transformDeferred(TimeLimiterOperator.of(timeLimiterRegistry.timeLimiter(DATABASE)))
-                .transformDeferred(CircuitBreakerOperator.of(circuitBreakerRegistry.circuitBreaker(DATABASE)))
-                .transformDeferred(RetryOperator.of(retryRegistry.retry(DATABASE_IDEMPOTENT)))
-                .onErrorMap(DatabaseResilience::isInfrastructureFailure,
-                        error -> new TechnicalException(ErrorCode.DATABASE_UNAVAILABLE, error));
+        return idempotent(call.collectList()).flatMapIterable(rows -> rows);
     }
 
     /** For an INSERT: it may be committed when it times out, so only connection-level errors are retried. */
