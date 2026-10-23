@@ -624,4 +624,5 @@ Destroy `dev` when you do not use it.
 - **No CI/CD pipeline.** A developer runs Terraform by hand. `publish-image.sh` is non-interactive, writes logs to stderr and prints only the Image Tag, so a CD pipeline can call it later.
 - **Fixed final snapshot name.** In `staging` and `prod`, a second destroy fails until the old `franchise-inventory-<env>-db-final` snapshot is deleted.
 - **DB Secret host and port refresh only with the password version** (see "Key decisions").
+- **No rate limiting at the edge.** The ALB has no AWS WAF web ACL. A later option is an optional WAF web ACL with a rate-based rule on the ALB, behind a variable that is off by default, because WAF adds a monthly charge.
 - **Base images are not pinned by digest.** The Dockerfile uses the `eclipse-temurin:21-jdk-alpine` and `eclipse-temurin:21-jre-alpine` tags, so two builds of the same commit can use different base layers.
