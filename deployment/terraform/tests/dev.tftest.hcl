@@ -67,11 +67,11 @@ mock_provider "aws" {
   }
 }
 
-# Mock providers cannot hold ephemeral resources, so the DB password provider is a
-# real configuration that cannot reach AWS (fake keys, a closed local endpoint).
-# override_module replaces the password module, so the provider is never called.
+# Mock providers cannot hold ephemeral resources, so the ephemeral password provider
+# is a real configuration that cannot reach AWS (fake keys, a closed local endpoint).
+# override_module replaces both password modules, so the provider is never called.
 provider "aws" {
-  alias                       = "db_password"
+  alias                       = "ephemeral"
   region                      = "us-east-1"
   access_key                  = "mock"
   secret_key                  = "mock"
@@ -88,6 +88,23 @@ override_module {
   target = module.database.module.password
   outputs = {
     value = "test-only-password"
+  }
+}
+
+override_module {
+  target = module.api_secret.module.password
+  outputs = {
+    value = "test-only-api-password"
+  }
+}
+
+# The mocked secrets all get the DB Secret ARN above. Give the API Secret its own
+# ARN, so the task role policy can be compared exactly.
+override_resource {
+  target          = module.api_secret.aws_secretsmanager_secret.api
+  override_during = plan
+  values = {
+    arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:franchise-inventory-dev-api-credential-GhIjKl"
   }
 }
 
@@ -152,6 +169,9 @@ variables {
   db_deletion_protection         = false
   db_skip_final_snapshot         = true
   db_secret_recovery_window_days = 0
+
+  api_secret_recovery_window_days = 0
+  api_credential_version          = 1
 
   alb_allowed_ingress_cidrs = ["0.0.0.0/0"]
 
@@ -289,6 +309,26 @@ run "dev_plan" {
   }
 
   assert {
+    condition     = output.api_secret_name == "franchise-inventory-dev-api-credential"
+    error_message = "The dev API Secret must be named franchise-inventory-dev-api-credential."
+  }
+
+  assert {
+    condition     = module.api_secret.settings.recovery_window_days == 0
+    error_message = "The dev API Secret must have a recovery window of 0 days, like the DB Secret."
+  }
+
+  assert {
+    condition     = module.api_secret.settings.credential_version == 1
+    error_message = "The dev API Secret version must follow api_credential_version."
+  }
+
+  assert {
+    condition     = module.api_secret.stores_plaintext_credential == false
+    error_message = "The API Credential must only be written through write-only arguments: no plaintext secret_string or secret_binary."
+  }
+
+  assert {
     condition = module.database.postgres_ingress_rules == [{
       from_port                = 5432
       to_port                  = 5432
@@ -399,14 +439,17 @@ run "dev_plan" {
       Version = "2012-10-17"
       Statement = [
         {
-          Sid      = "ReadDbSecret"
-          Effect   = "Allow"
-          Action   = ["secretsmanager:GetSecretValue"]
-          Resource = "arn:aws:secretsmanager:us-east-1:123456789012:secret:franchise-inventory-dev-db-AbCdEf"
+          Sid    = "ReadAppSecrets"
+          Effect = "Allow"
+          Action = ["secretsmanager:GetSecretValue"]
+          Resource = [
+            "arn:aws:secretsmanager:us-east-1:123456789012:secret:franchise-inventory-dev-db-AbCdEf",
+            "arn:aws:secretsmanager:us-east-1:123456789012:secret:franchise-inventory-dev-api-credential-GhIjKl",
+          ]
         },
       ]
     }
-    error_message = "The task role may only call secretsmanager:GetSecretValue on the DB Secret ARN."
+    error_message = "The task role may only call secretsmanager:GetSecretValue on exactly two ARNs: the DB Secret and the API Secret."
   }
 
   assert {
@@ -482,22 +525,31 @@ run "dev_service_plan" {
     error_message = "The dev container must send its logs with awslogs to the service log group."
   }
 
-  # The container gets only the three non-secret variables. The app reads the
-  # credentials itself from the DB Secret.
+  # The container gets only the four non-secret variables. The app reads the
+  # credentials itself from the DB Secret and the API Secret.
   assert {
-    condition = toset(module.ecs_service.task_definition.containers[0].environment) == toset([
-      { name = "SPRING_PROFILES_ACTIVE", value = "aws" },
-      { name = "DB_SECRET_NAME", value = "franchise-inventory-dev-db" },
-      { name = "AWS_REGION", value = "us-east-1" },
-    ])
-    error_message = "The container environment must hold only SPRING_PROFILES_ACTIVE=aws, DB_SECRET_NAME and AWS_REGION."
+    condition = (
+      length(module.ecs_service.task_definition.containers[0].environment) == 4 &&
+      toset(module.ecs_service.task_definition.containers[0].environment) == toset([
+        { name = "SPRING_PROFILES_ACTIVE", value = "aws" },
+        { name = "DB_SECRET_NAME", value = "franchise-inventory-dev-db" },
+        { name = "API_SECRET_NAME", value = "franchise-inventory-dev-api-credential" },
+        { name = "AWS_REGION", value = "us-east-1" },
+      ])
+    )
+    error_message = "The container environment must hold exactly SPRING_PROFILES_ACTIVE=aws, DB_SECRET_NAME, API_SECRET_NAME and AWS_REGION."
   }
 
   assert {
     condition = alltrue([
       for c in module.ecs_service.task_definition.containers :
       !contains(keys(c), "secrets") &&
-      alltrue([for e in c.environment : !can(regex("(?i)password", e.name)) && !strcontains(e.value, "test-only-password")])
+      alltrue([
+        for e in c.environment :
+        !can(regex("(?i)password", e.name)) &&
+        !strcontains(e.value, "test-only-password") &&
+        !strcontains(e.value, "test-only-api-password")
+      ])
     ])
     error_message = "No container may have a secrets block or an environment variable that holds a credential."
   }

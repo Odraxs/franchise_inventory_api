@@ -18,10 +18,10 @@ locals {
 }
 
 module "password" {
-  source = "./password"
+  source = "../password"
 
   providers = {
-    aws = aws.db_password
+    aws = aws.ephemeral
   }
 }
 

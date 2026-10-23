@@ -67,11 +67,11 @@ mock_provider "aws" {
   }
 }
 
-# Mock providers cannot hold ephemeral resources, so the DB password provider is a
-# real configuration that cannot reach AWS (fake keys, a closed local endpoint).
-# override_module replaces the password module, so the provider is never called.
+# Mock providers cannot hold ephemeral resources, so the ephemeral password provider
+# is a real configuration that cannot reach AWS (fake keys, a closed local endpoint).
+# override_module replaces both password modules, so the provider is never called.
 provider "aws" {
-  alias                       = "db_password"
+  alias                       = "ephemeral"
   region                      = "us-east-1"
   access_key                  = "mock"
   secret_key                  = "mock"
@@ -88,6 +88,23 @@ override_module {
   target = module.database.module.password
   outputs = {
     value = "test-only-password"
+  }
+}
+
+override_module {
+  target = module.api_secret.module.password
+  outputs = {
+    value = "test-only-api-password"
+  }
+}
+
+# The mocked secrets all get the DB Secret ARN above. Give the API Secret its own
+# ARN, so the task role policy can be compared exactly.
+override_resource {
+  target          = module.api_secret.aws_secretsmanager_secret.api
+  override_during = plan
+  values = {
+    arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:franchise-inventory-prod-api-credential-GhIjKl"
   }
 }
 
@@ -152,6 +169,9 @@ variables {
   db_deletion_protection         = true
   db_skip_final_snapshot         = false
   db_secret_recovery_window_days = 30
+
+  api_secret_recovery_window_days = 30
+  api_credential_version          = 1
 
   alb_allowed_ingress_cidrs = ["0.0.0.0/0"]
 
@@ -255,6 +275,26 @@ run "prod_plan" {
   }
 
   assert {
+    condition     = output.api_secret_name == "franchise-inventory-prod-api-credential"
+    error_message = "The prod API Secret must be named franchise-inventory-prod-api-credential."
+  }
+
+  assert {
+    condition     = module.api_secret.settings.recovery_window_days == 30
+    error_message = "The prod API Secret must have a recovery window of 30 days, like the DB Secret."
+  }
+
+  assert {
+    condition     = module.api_secret.settings.credential_version == 1
+    error_message = "The prod API Secret version must follow api_credential_version."
+  }
+
+  assert {
+    condition     = module.api_secret.stores_plaintext_credential == false
+    error_message = "The API Credential must only be written through write-only arguments: no plaintext secret_string or secret_binary."
+  }
+
+  assert {
     condition = (
       module.alb.actuator_rule.status_code == "404" &&
       contains(module.alb.actuator_rule.path_patterns, "/actuator/*")
@@ -302,12 +342,15 @@ run "prod_plan" {
 
   assert {
     condition = module.ecs_service.task_role_policy.Statement == [{
-      Sid      = "ReadDbSecret"
-      Effect   = "Allow"
-      Action   = ["secretsmanager:GetSecretValue"]
-      Resource = "arn:aws:secretsmanager:us-east-1:123456789012:secret:franchise-inventory-prod-db-AbCdEf"
+      Sid    = "ReadAppSecrets"
+      Effect = "Allow"
+      Action = ["secretsmanager:GetSecretValue"]
+      Resource = [
+        "arn:aws:secretsmanager:us-east-1:123456789012:secret:franchise-inventory-prod-db-AbCdEf",
+        "arn:aws:secretsmanager:us-east-1:123456789012:secret:franchise-inventory-prod-api-credential-GhIjKl",
+      ]
     }]
-    error_message = "The prod task role may only call secretsmanager:GetSecretValue on the DB Secret ARN."
+    error_message = "The prod task role may only call secretsmanager:GetSecretValue on exactly two ARNs: the DB Secret and the API Secret."
   }
 }
 
@@ -352,12 +395,17 @@ run "prod_service_plan" {
   }
 
   assert {
-    condition = toset(module.ecs_service.task_definition.containers[0].environment) == toset([
-      { name = "SPRING_PROFILES_ACTIVE", value = "aws" },
-      { name = "DB_SECRET_NAME", value = "franchise-inventory-prod-db" },
-      { name = "AWS_REGION", value = "us-east-1" },
-    ]) && !contains(keys(module.ecs_service.task_definition.containers[0]), "secrets")
-    error_message = "The prod container must get only the three non-secret variables and no secrets block."
+    condition = (
+      length(module.ecs_service.task_definition.containers[0].environment) == 4 &&
+      toset(module.ecs_service.task_definition.containers[0].environment) == toset([
+        { name = "SPRING_PROFILES_ACTIVE", value = "aws" },
+        { name = "DB_SECRET_NAME", value = "franchise-inventory-prod-db" },
+        { name = "API_SECRET_NAME", value = "franchise-inventory-prod-api-credential" },
+        { name = "AWS_REGION", value = "us-east-1" },
+      ]) &&
+      !contains(keys(module.ecs_service.task_definition.containers[0]), "secrets")
+    )
+    error_message = "The prod container must get exactly the four non-secret variables and no secrets block."
   }
 
   assert {

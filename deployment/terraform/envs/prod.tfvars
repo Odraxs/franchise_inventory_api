@@ -23,6 +23,13 @@ db_deletion_protection         = true
 db_skip_final_snapshot         = false
 db_secret_recovery_window_days = 30
 
+# API Secret: the API Credential (username and a random password) of the single
+# trusted Client. Same recovery window as the DB Secret.
+# Rotate it: increase api_credential_version by 1, commit, apply, then force a new
+# ECS deployment (see README, "Rotate the API Credential").
+api_secret_recovery_window_days = 30
+api_credential_version          = 1
+
 # ALB: public HTTP on port 80. With a real domain, set alb_certificate_arn to an
 # ACM certificate ARN to add HTTPS on port 443 and redirect HTTP to it.
 alb_allowed_ingress_cidrs = ["0.0.0.0/0"]

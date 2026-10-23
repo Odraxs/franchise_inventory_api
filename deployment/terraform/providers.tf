@@ -13,11 +13,12 @@ provider "aws" {
   }
 }
 
-# Same account and region. Used only to generate the ephemeral DB master password
-# (modules/database/password), which creates no resource and so needs no tags.
-# It is a separate configuration because terraform test cannot mock ephemeral
-# resources: the tests mock the default provider and give this one an offline setup.
+# Same account and region. Used only to generate the ephemeral passwords (the DB
+# master password and the API Credential password, both through modules/password),
+# which create no resource and so need no tags. It is a separate configuration
+# because terraform test cannot mock ephemeral resources: the tests mock the
+# default provider and give this one an offline setup.
 provider "aws" {
-  alias  = "db_password"
+  alias  = "ephemeral"
   region = var.aws_region
 }

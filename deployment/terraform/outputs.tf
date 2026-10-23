@@ -23,6 +23,11 @@ output "db_secret_name" {
   value       = module.database.secret_name
 }
 
+output "api_secret_name" {
+  description = "Name of the API Secret that holds the API Credential. The ECS task gets it in the API_SECRET_NAME environment variable."
+  value       = module.api_secret.secret_name
+}
+
 output "ecs_cluster_name" {
   description = "Name of the ECS cluster, e.g. for aws ecs describe-services --cluster."
   value       = module.ecs_service.cluster_name

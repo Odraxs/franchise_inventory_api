@@ -24,7 +24,7 @@ output "execution_role_arn" {
 }
 
 output "task_role_arn" {
-  description = "ARN of the task role (read the DB Secret)."
+  description = "ARN of the task role (read the DB Secret and the API Secret)."
   value       = aws_iam_role.task.arn
 }
 

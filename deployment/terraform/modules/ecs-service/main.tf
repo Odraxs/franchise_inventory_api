@@ -14,11 +14,13 @@ locals {
 
   container_name = "api"
 
-  # Only non-secret values. The app reads the DB credentials itself from the DB
-  # Secret (Spring Cloud AWS, task role), so there is no "secrets" block.
+  # Only non-secret values: the secret names, not their content. The app reads
+  # the DB credentials and the API Credential itself from the DB Secret and the
+  # API Secret (Spring Cloud AWS, task role), so there is no "secrets" block.
   container_environment = [
     { name = "SPRING_PROFILES_ACTIVE", value = "aws" },
     { name = "DB_SECRET_NAME", value = var.db_secret_name },
+    { name = "API_SECRET_NAME", value = var.api_secret_name },
     { name = "AWS_REGION", value = var.aws_region },
   ]
 
@@ -68,16 +70,17 @@ locals {
     ]
   }
 
-  # The task role is what the app code uses. It may read only the DB Secret.
-  # No SSM or ssmmessages permissions: ECS Exec stays off.
+  # The task role is what the app code uses. It may read only its two secrets:
+  # the DB Secret and the API Secret. No SSM or ssmmessages permissions: ECS
+  # Exec stays off.
   task_role_policy = {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid      = "ReadDbSecret"
+        Sid      = "ReadAppSecrets"
         Effect   = "Allow"
         Action   = ["secretsmanager:GetSecretValue"]
-        Resource = var.db_secret_arn
+        Resource = [var.db_secret_arn, var.api_secret_arn]
       },
     ]
   }
@@ -112,12 +115,12 @@ resource "aws_iam_role_policy" "execution" {
 
 resource "aws_iam_role" "task" {
   name               = "${var.name_prefix}-ecs-task"
-  description        = "API of ${var.name_prefix}: read the DB Secret only"
+  description        = "API of ${var.name_prefix}: read the DB Secret and the API Secret only"
   assume_role_policy = local.ecs_tasks_assume_role_policy
 }
 
 resource "aws_iam_role_policy" "task" {
-  name   = "read-db-secret"
+  name   = "read-app-secrets"
   role   = aws_iam_role.task.id
   policy = jsonencode(local.task_role_policy)
 }

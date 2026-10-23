@@ -39,8 +39,8 @@ module "database" {
   source = "./modules/database"
 
   providers = {
-    aws             = aws
-    aws.db_password = aws.db_password
+    aws           = aws
+    aws.ephemeral = aws.ephemeral
   }
 
   name_prefix = local.name_prefix
@@ -60,6 +60,20 @@ module "database" {
   skip_final_snapshot         = var.db_skip_final_snapshot
   secret_recovery_window_days = var.db_secret_recovery_window_days
   password_version            = var.db_password_version
+}
+
+module "api_secret" {
+  source = "./modules/api-secret"
+
+  providers = {
+    aws           = aws
+    aws.ephemeral = aws.ephemeral
+  }
+
+  name_prefix          = local.name_prefix
+  client_username      = var.api_client_username
+  recovery_window_days = var.api_secret_recovery_window_days
+  credential_version   = var.api_credential_version
 }
 
 module "alb" {
@@ -94,6 +108,8 @@ module "ecs_service" {
   db_port              = module.database.port
   db_secret_arn        = module.database.secret_arn
   db_secret_name       = module.database.secret_name
+  api_secret_arn       = module.api_secret.secret_arn
+  api_secret_name      = module.api_secret.secret_name
 
   container_port     = var.container_port
   capacity_provider  = var.ecs_capacity_provider

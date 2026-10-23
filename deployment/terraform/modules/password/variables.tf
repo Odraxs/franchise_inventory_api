@@ -1,5 +1,5 @@
 variable "length" {
-  description = "Number of characters of the password. RDS PostgreSQL accepts 8 to 128."
+  description = "Number of characters of the password, from 8 to 128 (the limits of the RDS PostgreSQL master password)."
   type        = number
   default     = 32
 

@@ -150,6 +150,24 @@ variable "db_password_version" {
   default     = 1
 }
 
+variable "api_client_username" {
+  description = "Username of the API Credential of the single trusted Client. Not secret; Terraform writes it with the generated password to the API Secret."
+  type        = string
+  default     = "inventory-client"
+}
+
+variable "api_secret_recovery_window_days" {
+  description = "Recovery window of the API Secret in days. 0 deletes it at once (dev). Otherwise 7 to 30. Each Environment uses the window of its DB Secret."
+  type        = number
+  default     = 30
+}
+
+variable "api_credential_version" {
+  description = "Version of the API Credential. Increase it by 1 in envs/<env>.tfvars to rotate the password in the API Secret, then force a new ECS deployment. The same apply also rewrites the username."
+  type        = number
+  default     = 1
+}
+
 variable "container_port" {
   description = "Port that the API container listens on (server.port of the app)."
   type        = number

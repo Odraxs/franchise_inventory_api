@@ -61,12 +61,22 @@ variable "db_port" {
 }
 
 variable "db_secret_arn" {
-  description = "ARN of the DB Secret. The task role may call secretsmanager:GetSecretValue only on it."
+  description = "ARN of the DB Secret. Together with the API Secret, it is the only secret the task role may read with secretsmanager:GetSecretValue."
   type        = string
 }
 
 variable "db_secret_name" {
   description = "Name of the DB Secret. The container gets it in DB_SECRET_NAME; the aws Spring profile reads the secret at startup."
+  type        = string
+}
+
+variable "api_secret_arn" {
+  description = "ARN of the API Secret. Together with the DB Secret, it is the only secret the task role may read with secretsmanager:GetSecretValue."
+  type        = string
+}
+
+variable "api_secret_name" {
+  description = "Name of the API Secret. The container gets it in API_SECRET_NAME; the aws Spring profile reads the API Credential from it at startup."
   type        = string
 }
 

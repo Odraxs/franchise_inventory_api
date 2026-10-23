@@ -22,6 +22,13 @@ db_deletion_protection         = false
 db_skip_final_snapshot         = true
 db_secret_recovery_window_days = 0
 
+# API Secret: the API Credential (username and a random password) of the single
+# trusted Client. Same recovery window as the DB Secret (0: deleted at once).
+# Rotate it: increase api_credential_version by 1, commit, apply, then force a new
+# ECS deployment (see README, "Rotate the API Credential").
+api_secret_recovery_window_days = 0
+api_credential_version          = 1
+
 # ALB: public HTTP on port 80. No domain, so no certificate (alb_certificate_arn stays empty).
 alb_allowed_ingress_cidrs = ["0.0.0.0/0"]
 

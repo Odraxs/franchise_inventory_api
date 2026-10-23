@@ -40,11 +40,11 @@ mock_provider "aws" {
   }
 }
 
-# Mock providers cannot hold ephemeral resources, so the DB password provider is a
-# real configuration that cannot reach AWS (fake keys, a closed local endpoint).
-# override_module replaces the password module, so the provider is never called.
+# Mock providers cannot hold ephemeral resources, so the ephemeral password provider
+# is a real configuration that cannot reach AWS (fake keys, a closed local endpoint).
+# override_module replaces both password modules, so the provider is never called.
 provider "aws" {
-  alias                       = "db_password"
+  alias                       = "ephemeral"
   region                      = "us-east-1"
   access_key                  = "mock"
   secret_key                  = "mock"
@@ -61,6 +61,13 @@ override_module {
   target = module.database.module.password
   outputs = {
     value = "test-only-password"
+  }
+}
+
+override_module {
+  target = module.api_secret.module.password
+  outputs = {
+    value = "test-only-api-password"
   }
 }
 
@@ -172,6 +179,24 @@ run "alb_with_certificate_serves_https_and_redirects_http" {
   assert {
     condition     = module.alb.ingress_rules == toset([{ cidr = "0.0.0.0/0", port = 80 }, { cidr = "0.0.0.0/0", port = 443 }])
     error_message = "With a certificate, the ALB must accept ports 80 and 443."
+  }
+}
+
+run "api_credential_version_drives_the_api_secret_version" {
+  command = plan
+
+  variables {
+    api_credential_version = 2
+  }
+
+  assert {
+    condition     = module.api_secret.settings.credential_version == 2
+    error_message = "The API Secret version must follow api_credential_version, so a new version rotates the API Credential."
+  }
+
+  assert {
+    condition     = module.api_secret.stores_plaintext_credential == false
+    error_message = "The API Credential must only be written through write-only arguments."
   }
 }
 
