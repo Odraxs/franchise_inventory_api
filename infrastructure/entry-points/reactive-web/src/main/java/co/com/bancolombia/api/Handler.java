@@ -129,7 +129,7 @@ public class Handler {
                         .flatMap(request -> renameProductUseCase.execute(ids.getT1(), ids.getT2(), ids.getT3(),
                                 request.name())))
                 .flatMap(product -> ServerResponse.ok().bodyValue(toResponse(product)))
-                .onErrorResume(BusinessException.class, this::toErrorResponse);
+                .transform(this::handleDomainErrors);
     }
 
     public Mono<ServerResponse> deleteProduct(ServerRequest serverRequest) {
