@@ -202,6 +202,27 @@ curl -s -u $CREDENTIAL -X PATCH $API/franchises/$FRANCHISE_ID/branches/$DOWNTOWN
 # {"code":"INVALID_STOCK","message":"The stock must be an integer from 0 to 2147483647"}
 ```
 
+### Import the requests into Postman, Insomnia or Bruno
+
+[`franchise-inventory-api.postman_collection.json`](franchise-inventory-api.postman_collection.json) holds every route as a ready-to-send request. It is a Postman Collection v2.1, a format all three tools import:
+
+- **Postman:** *Import* → *Files* → pick the JSON.
+- **Insomnia:** *Application menu* → *Import* → *From File* → pick the JSON.
+- **Bruno:** *Collection* → *Import Collection* → *Postman Collection* → pick the JSON.
+
+The collection carries the local dev **API Credential**, so every request authenticates as soon as it imports. It has four folders:
+
+| Folder | Requests |
+|---|---|
+| `1. Smoke test walkthrough` | The walkthrough above, in order |
+| `2. Error contract` | `409`, `400`, `404` and `401` examples |
+| `3. Remaining endpoints` | Renames and the soft delete |
+| `4. Service checks` | Public health check |
+
+It uses collection variables for `baseUrl` (`http://localhost:8080`), `apiUsername`, `apiPassword` and `suffix`. The ids are URL path variables (`:franchiseId`, `:downtownBranchId`, `:uptownBranchId`, `:cheeseburgerId`, `:friesId`), each backed by a collection variable of the same name. In Postman, the test scripts fill those variables from each create response, so running the first folder top to bottom is enough. Insomnia and Bruno do not run the `pm.*` scripts, so copy the `id` of each response into the matching variable before the next request.
+
+Franchise names are unique, so before a second run against the same database set `suffix` to a new value (for example `-2`); the requests then use `Burger Town-2` and friends. To target another environment, change `baseUrl` and the two credential variables.
+
 ### Error contract
 
 Every error answers with a JSON body `{"code": "...", "message": "..."}`. The code name sets the HTTP status:
@@ -241,6 +262,7 @@ infrastructure/entry-points/
   reactive-web/                    RouterRest + Handler, request/response DTOs, error mapping, openapi.yaml
 deployment/Dockerfile              Multi-stage image build (JDK build, JRE runtime)
 docker-compose.yml                 PostgreSQL + app
+franchise-inventory-api.postman_collection.json  API requests for Postman, Insomnia and Bruno
 ```
 
 - Architecture, layer rules and how to add code: [`AGENTS.md`](AGENTS.md)
