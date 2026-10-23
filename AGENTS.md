@@ -60,6 +60,7 @@ Task options and adapter types: [tasks docs](https://bancolombia.github.io/scaff
 1. `./gradlew vs` passes (layer dependencies; it also runs before every `compileJava`).
 2. `./gradlew test` passes, including `ArchitectureTest` in `app-service`. Rule violations there show as `ARCHITECTURE_RULE_VIOLATED` warnings in the log; treat each one as a failure to fix. `ArchitectureTest.java` is generated: leave it unchanged.
 3. New use cases, adapters and handlers have unit tests (`StepVerifier` for reactive flows, Mockito for gateways).
+4. Changes to SQL, migrations, routes or wiring also pass `./gradlew :app-service:integrationTest` (the **Integration Tests** need Docker).
 
 ## Run locally
 
