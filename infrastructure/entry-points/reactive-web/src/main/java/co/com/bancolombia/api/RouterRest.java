@@ -14,15 +14,18 @@ import static org.springframework.web.reactive.function.server.RouterFunctions.r
 @Configuration
 public class RouterRest {
     @Bean
-    public RouterFunction<ServerResponse> routerFunction(Handler handler) {
-        return route(POST(ApiPaths.FRANCHISES), handler::createFranchise)
-                .andRoute(PATCH(ApiPaths.FRANCHISE), handler::renameFranchise)
-                .andRoute(POST(ApiPaths.BRANCHES), handler::addBranch)
-                .andRoute(PATCH(ApiPaths.BRANCH), handler::renameBranch)
-                .andRoute(POST(ApiPaths.PRODUCTS), handler::addProduct)
-                .andRoute(PATCH(ApiPaths.PRODUCT), handler::renameProduct)
-                .andRoute(DELETE(ApiPaths.PRODUCT), handler::deleteProduct)
-                .andRoute(PATCH(ApiPaths.PRODUCT_STOCK), handler::updateProductStock)
-                .andRoute(GET(ApiPaths.TOP_STOCK_PRODUCTS), handler::getTopStockProducts);
+    public RouterFunction<ServerResponse> routerFunction(FranchiseHandler franchiseHandler,
+                                                         BranchHandler branchHandler,
+                                                         ProductHandler productHandler,
+                                                         TopStockHandler topStockHandler) {
+        return route(POST(ApiPaths.FRANCHISES), franchiseHandler::createFranchise)
+                .andRoute(PATCH(ApiPaths.FRANCHISE), franchiseHandler::renameFranchise)
+                .andRoute(POST(ApiPaths.BRANCHES), branchHandler::addBranch)
+                .andRoute(PATCH(ApiPaths.BRANCH), branchHandler::renameBranch)
+                .andRoute(POST(ApiPaths.PRODUCTS), productHandler::addProduct)
+                .andRoute(PATCH(ApiPaths.PRODUCT), productHandler::renameProduct)
+                .andRoute(DELETE(ApiPaths.PRODUCT), productHandler::deleteProduct)
+                .andRoute(PATCH(ApiPaths.PRODUCT_STOCK), productHandler::updateProductStock)
+                .andRoute(GET(ApiPaths.TOP_STOCK_PRODUCTS), topStockHandler::getTopStockProducts);
     }
 }
