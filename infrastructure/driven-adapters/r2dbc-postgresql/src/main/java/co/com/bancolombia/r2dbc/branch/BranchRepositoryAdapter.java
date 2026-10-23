@@ -30,11 +30,12 @@ public class BranchRepositoryAdapter implements BranchGateway {
 
     /**
      * uq_branch_franchise_name rejects a name another Branch of the franchise has (ignoring case); a row never
-     * conflicts with itself. Setting the same name again changes nothing, so a rename is retried like a read.
+     * conflicts with itself. A Timeout leaves the commit unknown, and repeating the UPDATE could overwrite a newer
+     * rename, so only connection-level errors are retried.
      */
     @Override
     public Mono<Branch> rename(UUID id, UUID franchiseId, String name) {
-        return resilience.idempotent(repository.rename(id, franchiseId, name))
+        return resilience.nonIdempotent(repository.rename(id, franchiseId, name))
                 .map(BranchRepositoryAdapter::toEntity)
                 .onErrorMap(DuplicateKeyException.class,
                         error -> new BusinessException(ErrorCode.DUPLICATE_BRANCH_NAME, error));

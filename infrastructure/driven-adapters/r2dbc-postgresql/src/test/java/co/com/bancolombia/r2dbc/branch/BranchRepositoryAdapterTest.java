@@ -97,21 +97,18 @@ class BranchRepositoryAdapterTest {
     }
 
     @Test
-    void renameIsRetriedAfterATimeoutAndRecovers() {
+    void stalledRenameFailsWithDatabaseUnavailableWithoutRetrying() {
         UUID id = UUID.randomUUID();
-        AtomicInteger subscriptions = new AtomicInteger();
-        Iterator<Mono<BranchData>> answers = List.of(Mono.<BranchData>never(),
-                Mono.just(new BranchData(id, FRANCHISE_ID, "Centro"))).iterator();
-        when(repository.rename(id, FRANCHISE_ID, "Centro")).thenReturn(Mono.defer(answers::next)
-                .doOnSubscribe(subscription -> subscriptions.incrementAndGet()));
+        PublisherProbe<BranchData> stalled = PublisherProbe.of(Mono.never());
+        when(repository.rename(id, FRANCHISE_ID, "Centro")).thenReturn(stalled.mono());
 
         StepVerifier.withVirtualTime(() -> adapter.rename(id, FRANCHISE_ID, "Centro"))
                 .expectSubscription()
-                .thenAwait(DatabaseResilienceFixture.TIMEOUT)
-                .thenAwait(ALL_BACKOFFS)
-                .expectNextCount(1)
-                .verifyComplete();
-        assertThat(subscriptions).hasValue(2);
+                .thenAwait(DatabaseResilienceFixture.TIMEOUT.plus(ALL_BACKOFFS))
+                .expectErrorMatches(error -> error instanceof TechnicalException exception
+                        && exception.getErrorCode() == TechnicalException.ErrorCode.DATABASE_UNAVAILABLE)
+                .verify();
+        assertThat(stalled.subscribeCount()).isEqualTo(1);
     }
 
     @Test
