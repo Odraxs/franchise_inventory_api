@@ -65,3 +65,87 @@ ADAPTERS_R2DBC_PORT=5436 ./gradlew :app-service:bootRun --args='--spring.profile
 The `local` profile (`applications/app-service/src/main/resources/application-local.yaml`) points to `localhost:5435`, the port of a PostgreSQL server installed on the host. `ADAPTERS_R2DBC_PORT=5436` points it to the Docker container instead (use your `DB_HOST_PORT` if you changed it). If you changed the database name or credentials in `.env`, also set `ADAPTERS_R2DBC_DATABASE`, `ADAPTERS_R2DBC_USERNAME` and `ADAPTERS_R2DBC_PASSWORD`.
 
 The app is ready when the log shows `Started MainApplication`. Stop it with `Ctrl+C` and the database with `docker compose down`.
+
+## 3. Explore the API
+
+With the app running:
+
+- Swagger UI: <http://localhost:8080/swagger-ui.html>
+- OpenAPI spec: <http://localhost:8080/openapi.yaml> (source: `infrastructure/entry-points/reactive-web/src/main/resources/static/openapi.yaml`)
+- Health: <http://localhost:8080/actuator/health>
+
+The API has no authentication.
+
+| Method | Path | Does |
+|---|---|---|
+| `POST` | `/franchises` | Create a franchise |
+| `PATCH` | `/franchises/{id}` | Rename a franchise |
+| `POST` | `/franchises/{franchiseId}/branches` | Add a branch to a franchise |
+| `PATCH` | `/franchises/{franchiseId}/branches/{id}` | Rename a branch |
+| `POST` | `/franchises/{franchiseId}/branches/{branchId}/products` | Add a product with its initial stock to a branch |
+| `PATCH` | `/franchises/{franchiseId}/branches/{branchId}/products/{id}` | Rename a product |
+| `DELETE` | `/franchises/{franchiseId}/branches/{branchId}/products/{id}` | Delete a product (soft delete) |
+| `PATCH` | `/franchises/{franchiseId}/branches/{branchId}/products/{id}/stock` | Update the stock of a product |
+| `GET` | `/franchises/{franchiseId}/top-stock-products` | Report the product with the most stock in each branch |
+
+### Smoke test walkthrough
+
+Run these in one terminal, in order; each step saves the new id in a shell variable for the next one. Names are unique (case-insensitive), so on a database that already has these names, change them or start from an empty database (`docker compose down -v`).
+
+```bash
+API=http://localhost:8080
+
+# Create a franchise (201)
+FRANCHISE_ID=$(curl -s -X POST $API/franchises \
+  -H 'Content-Type: application/json' -d '{"name":"Burger Town"}' | jq -r .id)
+
+# Add two branches to it (201)
+DOWNTOWN_ID=$(curl -s -X POST $API/franchises/$FRANCHISE_ID/branches \
+  -H 'Content-Type: application/json' -d '{"name":"Downtown"}' | jq -r .id)
+UPTOWN_ID=$(curl -s -X POST $API/franchises/$FRANCHISE_ID/branches \
+  -H 'Content-Type: application/json' -d '{"name":"Uptown"}' | jq -r .id)
+
+# Add two products to Downtown (201)
+BURGER_ID=$(curl -s -X POST $API/franchises/$FRANCHISE_ID/branches/$DOWNTOWN_ID/products \
+  -H 'Content-Type: application/json' -d '{"name":"Cheeseburger","stock":10}' | jq -r .id)
+curl -s -X POST $API/franchises/$FRANCHISE_ID/branches/$DOWNTOWN_ID/products \
+  -H 'Content-Type: application/json' -d '{"name":"Fries","stock":25}' | jq
+
+# Raise the Cheeseburger stock to 40 (200)
+curl -s -X PATCH $API/franchises/$FRANCHISE_ID/branches/$DOWNTOWN_ID/products/$BURGER_ID/stock \
+  -H 'Content-Type: application/json' -d '{"stock":40}' | jq
+
+# Top-stock report (200): Cheeseburger tops Downtown, Uptown has no products
+curl -s $API/franchises/$FRANCHISE_ID/top-stock-products | jq
+```
+
+The report looks like this (with your ids):
+
+```json
+{
+  "franchiseId": "…",
+  "branches": [
+    {
+      "branchId": "…",
+      "branchName": "Downtown",
+      "topProduct": { "id": "…", "name": "Cheeseburger", "stock": 40 }
+    },
+    {
+      "branchId": "…",
+      "branchName": "Uptown",
+      "topProduct": null
+    }
+  ]
+}
+```
+
+To see the error contract, repeat a name in another case (`409`) or send a negative stock (`400`):
+
+```bash
+curl -s -X POST $API/franchises -H 'Content-Type: application/json' -d '{"name":"burger town"}'
+# {"code":"DUPLICATE_FRANCHISE_NAME","message":"A franchise with this name already exists"}
+
+curl -s -X PATCH $API/franchises/$FRANCHISE_ID/branches/$DOWNTOWN_ID/products/$BURGER_ID/stock \
+  -H 'Content-Type: application/json' -d '{"stock":-1}'
+# {"code":"INVALID_STOCK","message":"The stock must be an integer from 0 to 2147483647"}
+```
