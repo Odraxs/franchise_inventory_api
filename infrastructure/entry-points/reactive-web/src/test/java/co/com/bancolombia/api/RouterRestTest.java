@@ -592,8 +592,8 @@ class RouterRestTest {
                 .expectStatus().isBadRequest()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo("INVALID_PRODUCT_UPDATE")
-                .jsonPath("$.message").isEqualTo("Only the name changes here; update the stock with PATCH "
-                        + "/franchises/{franchiseId}/branches/{branchId}/products/{id}/stock");
+                .jsonPath("$.message")
+                .isEqualTo("Only the name changes here; update the stock through the stock endpoint");
         verifyNoInteractions(renameProductUseCase);
     }
 

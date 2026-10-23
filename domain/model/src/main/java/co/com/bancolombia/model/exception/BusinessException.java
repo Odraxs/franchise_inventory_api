@@ -14,8 +14,7 @@ public class BusinessException extends DomainException {
         DUPLICATE_BRANCH_NAME("A branch with this name already exists in the franchise"),
         BRANCH_NOT_FOUND("The branch does not exist in the franchise"),
         INVALID_PRODUCT_NAME("The product name must not be blank and must have at most 100 characters"),
-        INVALID_PRODUCT_UPDATE("Only the name changes here; update the stock with PATCH "
-                + "/franchises/{franchiseId}/branches/{branchId}/products/{id}/stock"),
+        INVALID_PRODUCT_UPDATE("Only the name changes here; update the stock through the stock endpoint"),
         INVALID_STOCK("The stock must be an integer from 0 to 2147483647"),
         DUPLICATE_PRODUCT_NAME("A product with this name already exists in the branch"),
         PRODUCT_NOT_FOUND("The product does not exist in the branch");
