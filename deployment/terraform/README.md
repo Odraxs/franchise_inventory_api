@@ -1,7 +1,7 @@
 # AWS deployment (Terraform)
 
 This directory deploys the Franchise Inventory API to AWS with Terraform.
-It holds the Root Composition, five Terraform Modules, the Bootstrap Stack and the files for each Environment.
+It holds the Root Composition, six Terraform Modules, the Bootstrap Stack and the files for each Environment.
 
 ## Contents
 
@@ -24,12 +24,13 @@ The image comes from a private **ECR** repository.
 An internet-facing **Application Load Balancer (ALB)** is the only public entry point.
 Data lives in **RDS PostgreSQL 17**, the same engine as `docker-compose.yml`.
 The database credentials live in one **Secrets Manager** secret, the DB Secret.
+The API Credential of the Client (HTTP Basic) lives in a second one, the API Secret.
 **Service Auto Scaling** adds or removes tasks to keep the average CPU near 75 percent.
 Container logs go to **CloudWatch Logs**.
 
 The Terraform code is modular:
 
-- One Root Composition (`main.tf` and the files next to it) wires five Terraform Modules: `network`, `ecr`, `database`, `alb` and `ecs-service`.
+- One Root Composition (`main.tf` and the files next to it) wires six Terraform Modules: `network`, `ecr`, `database`, `api-secret`, `alb` and `ecs-service`. The `database` and `api-secret` modules share a small `password` module.
 - The Remote State lives in an S3 bucket with native S3 locking (`use_lockfile = true`). The Bootstrap Stack creates that bucket.
 - Three Environments share the same code: `dev`, `staging` and `prod`. Each Environment has one `envs/<env>.tfvars` file and one `envs/<env>.backend.hcl` file.
 
@@ -54,6 +55,8 @@ Every resource name has the form `franchise-inventory-<env>-<resource>`, for exa
 | DB deletion protection | off | off | on |
 | DB final snapshot | skipped | kept | kept |
 | DB Secret recovery window | 0 days | 7 days | 30 days |
+| API Secret recovery window | 0 days | 7 days | 30 days |
+| ALB HTTPS (ACM certificate) | no | when `alb_certificate_arn` is set | required |
 | ECR force delete / images kept | yes / 10 | no / 10 | no / 30 |
 | Log retention | 7 days | 14 days | 30 days |
 | AWS Budget (USD 20) | yes | no | no |
@@ -64,7 +67,7 @@ The task size is the same in every Environment: 0.5 vCPU, 1 GB memory, `X86_64`.
 
 ```mermaid
 flowchart LR
-    client["Client (HTTP port 80)"]
+    client["Client<br/>HTTP Basic with the API Credential"]
 
     subgraph region["AWS account, us-east-1"]
         subgraph vpc["VPC, 2 Availability Zones"]
@@ -80,13 +83,13 @@ flowchart LR
         end
 
         subgraph services["AWS service endpoints"]
-            secrets["Secrets Manager<br/>DB Secret"]
+            secrets["Secrets Manager<br/>DB Secret and API Secret"]
             ecr["ECR<br/>immutable Image Tags"]
             logs["CloudWatch Logs"]
         end
     end
 
-    client -->|"HTTP 80 (HTTPS 443 with a certificate)"| alb
+    client -->|"HTTP 80 (HTTPS 443 with a certificate, required in prod)"| alb
     alb -->|"TCP 8080, task SG allows only the ALB SG"| tasksDev
     alb -.->|"TCP 8080"| tasksPrv
     tasksDev -->|"TCP 5432, DB SG allows only the task SG"| rds
@@ -101,10 +104,11 @@ Dashed lines show `staging` and `prod`, where the tasks run in private subnets b
 
 How a request flows:
 
-1. The client calls the ALB on port 80.
+1. The Client calls the ALB on port 80, or on port 443 when the ALB has a certificate. It sends the API Credential in every request with HTTP Basic.
 2. The ALB answers `404 Not Found` for `/actuator` and `/actuator/*`. It forwards every other path to a healthy task on port 8080.
-3. At startup, each task reads the DB Secret from Secrets Manager. It then opens SSL connections to RDS on port 5432.
-4. The ECS agent pulls the image from ECR and sends the container logs to CloudWatch Logs.
+3. At startup, each task reads the DB Secret and the API Secret from Secrets Manager. It then opens SSL connections to RDS on port 5432.
+4. The app answers `401 Unauthorized` to a business call without a valid API Credential.
+5. The ECS agent pulls the image from ECR and sends the container logs to CloudWatch Logs.
 
 Security groups (SG) limit every hop:
 
@@ -128,7 +132,8 @@ deployment/
     │   ├── network/
     │   ├── ecr/
     │   ├── database/
-    │   │   └── password/         # Ephemeral DB master password (see "Key decisions")
+    │   ├── api-secret/
+    │   ├── password/             # Ephemeral passwords for both secrets (see "Key decisions")
     │   ├── alb/
     │   └── ecs-service/
     ├── envs/
@@ -152,9 +157,11 @@ deployment/
 | `bootstrap/` | The S3 bucket `franchise-inventory-tfstate-<account_id>` for the Remote State: versioning, AES256 encryption, a public access block and `BucketOwnerEnforced` ownership. It uses local state. Output: `state_bucket`. |
 | `modules/network` | The VPC over `az_count` Availability Zones, the internet gateway, one public and one private subnet per AZ (`/20` blocks), the route tables, and one optional NAT Gateway with its Elastic IP. |
 | `modules/ecr` | One private repository per Environment with `IMMUTABLE` tags, scan on push, AES256 encryption and a lifecycle policy. The policy expires untagged images after 1 day and keeps the `max_image_count` most recent images. |
-| `modules/database` | The DB subnet group, the DB SG, the RDS instance (gp3, encrypted, not public) and the DB Secret with its version. The nested `password` module generates the ephemeral master password. |
-| `modules/alb` | The ALB SG, the ALB, the target group (type `ip`, health check `/actuator/health/readiness`), the HTTP listener, the optional HTTPS listener, and the listener rule that answers 404 for the actuator. |
-| `modules/ecs-service` | The cluster, the log group, the execution role, the task role, the task SG, the task definition, the service, and the Service Auto Scaling target and CPU policy. The task definition, the service and the scaling resources exist only when an Image Tag is set. |
+| `modules/database` | The DB subnet group, the DB SG, the RDS instance (gp3, encrypted, not public) and the DB Secret with its version. The shared `password` module generates the ephemeral master password. |
+| `modules/api-secret` | The API Secret `franchise-inventory-<env>-api-credential` with its version: the API Credential as JSON with the keys `username` and `password`. The shared `password` module generates the ephemeral password. |
+| `modules/password` | One ephemeral random password (`aws_secretsmanager_random_password`). It creates no resource and stores nothing. |
+| `modules/alb` | The ALB SG, the ALB, the target group (type `ip`, health check `/actuator/health/readiness`), the HTTP listener, the HTTPS listener when a certificate is set (required in `prod`), and the listener rule that answers 404 for the actuator. |
+| `modules/ecs-service` | The cluster, the log group, the execution role, the task role (it reads the two secrets), the task SG, the task definition, the service, and the Service Auto Scaling target and CPU policy. The task definition, the service and the scaling resources exist only when an Image Tag is set. |
 | Root Composition | Wires the modules, sets the provider `default_tags` (`Project`, `Environment`, `ManagedBy`, `Repository`), holds the AWS Budget (`budget.tf`) and exposes the outputs. |
 
 ### Root outputs
@@ -166,6 +173,7 @@ deployment/
 | `ecr_repository_name` | Name of the ECR repository. |
 | `container_image` | Full image reference that the Environment deploys. Null without `image_tag`. |
 | `db_secret_name` | Name of the DB Secret. |
+| `api_secret_name` | Name of the API Secret. The smoke test reads the API Credential from it. |
 | `ecs_cluster_name` | Name of the ECS cluster. |
 | `ecs_service_name` | Name of the ECS service. Null without `image_tag`. |
 | `ecs_log_group_name` | CloudWatch log group of the API container. |
@@ -176,6 +184,7 @@ deployment/
 - **AWS CLI v2**.
 - **Docker**. The publish script builds a `linux/amd64` image. On an ARM machine, Docker builds it through emulation, which is slower.
 - **git**. The publish script reads the commit SHA.
+- **jq**. The smoke test reads the API Credential from the JSON of the API Secret.
 - **tflint**, for the quality checks only.
 - An **AWS account** and a credentials profile with permission to create the resources in this directory.
 
@@ -254,7 +263,7 @@ terraform plan -var-file=envs/dev.tfvars
 terraform apply -var-file=envs/dev.tfvars
 ```
 
-This apply creates the ECR repository, the network, the database and the DB Secret, the ALB, the ECS cluster, the log group, the IAM roles, the task SG and the AWS Budget.
+This apply creates the ECR repository, the network, the database and the DB Secret, the API Secret, the ALB, the ECS cluster, the log group, the IAM roles, the task SG and the AWS Budget.
 It creates no task definition, no ECS service and no scaling resources yet.
 The RDS instance takes several minutes to create.
 
@@ -321,11 +330,22 @@ aws logs tail "$(terraform output -raw ecs_log_group_name)" --follow
 Run this from `deployment/terraform`.
 A new ALB DNS name can take a few minutes to resolve.
 
+Every business route needs HTTP Basic with the API Credential of the Client.
+See the root README, [Authentication](../../README.md#3-authentication), for the protected and the public routes.
+Read the API Credential from the API Secret:
+
 ```bash
 ALB_URL=$(terraform output -raw alb_url)
+API_SECRET=$(aws secretsmanager get-secret-value \
+  --secret-id "$(terraform output -raw api_secret_name)" \
+  --query SecretString --output text)
+CREDENTIAL="$(jq -r .username <<<"$API_SECRET"):$(jq -r .password <<<"$API_SECRET")"
 ```
 
-Create a Franchise. Expect `201 Created`, a `Location` header and a JSON body with `id` and `name`:
+The credential stays in shell variables of this terminal.
+Do not print it, and close the terminal after the smoke test.
+
+Check that a call without credentials is rejected. Expect `401 Unauthorized` and a `WWW-Authenticate: Basic realm="franchise-inventory"` header:
 
 ```bash
 curl -i -X POST "$ALB_URL/franchises" \
@@ -333,33 +353,88 @@ curl -i -X POST "$ALB_URL/franchises" \
   -d '{"name":"Smoke Test Franchise"}'
 ```
 
-Copy the `id` from the response. Add a Branch to the Franchise. Expect `201 Created`:
+The app answers `401` before it reads the body, so this call creates nothing.
+A wrong password gets the same `401`:
+
+```bash
+curl -i -u 'inventory-client:wrong-password' "$ALB_URL/franchises/00000000-0000-0000-0000-000000000000/top-stock-products"
+```
+
+Now call every business route with the API Credential.
+Create a Franchise. Expect `201 Created`, a `Location` header and a JSON body with `id` and `name`:
+
+```bash
+curl -i -u "$CREDENTIAL" -X POST "$ALB_URL/franchises" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Smoke Test Franchise"}'
+```
+
+Copy the `id` from the response. Rename the Franchise. Expect `200 OK`:
 
 ```bash
 FRANCHISE_ID=<id-from-the-response>
-curl -i -X POST "$ALB_URL/franchises/$FRANCHISE_ID/branches" \
+curl -i -u "$CREDENTIAL" -X PATCH "$ALB_URL/franchises/$FRANCHISE_ID" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Smoke Test Franchise Renamed"}'
+```
+
+Add a Branch to the Franchise. Expect `201 Created`:
+
+```bash
+curl -i -u "$CREDENTIAL" -X POST "$ALB_URL/franchises/$FRANCHISE_ID/branches" \
   -H 'Content-Type: application/json' \
   -d '{"name":"Downtown"}'
 ```
 
-Copy the Branch `id`. Add a Product to the Branch. Expect `201 Created`:
+Copy the Branch `id`. Rename the Branch. Expect `200 OK`:
 
 ```bash
 BRANCH_ID=<id-from-the-response>
-curl -i -X POST "$ALB_URL/franchises/$FRANCHISE_ID/branches/$BRANCH_ID/products" \
+curl -i -u "$CREDENTIAL" -X PATCH "$ALB_URL/franchises/$FRANCHISE_ID/branches/$BRANCH_ID" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Uptown"}'
+```
+
+Add a Product to the Branch. Expect `201 Created`:
+
+```bash
+curl -i -u "$CREDENTIAL" -X POST "$ALB_URL/franchises/$FRANCHISE_ID/branches/$BRANCH_ID/products" \
   -H 'Content-Type: application/json' \
   -d '{"name":"Coffee","stock":10}'
 ```
 
-Copy the Product `id`. Delete the Product. Expect `204 No Content`:
+Copy the Product `id`. Rename the Product, then set its stock to 40. Expect `200 OK` from both:
 
 ```bash
 PRODUCT_ID=<id-from-the-response>
-curl -i -X DELETE "$ALB_URL/franchises/$FRANCHISE_ID/branches/$BRANCH_ID/products/$PRODUCT_ID"
+curl -i -u "$CREDENTIAL" -X PATCH "$ALB_URL/franchises/$FRANCHISE_ID/branches/$BRANCH_ID/products/$PRODUCT_ID" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Espresso"}'
+curl -i -u "$CREDENTIAL" -X PATCH "$ALB_URL/franchises/$FRANCHISE_ID/branches/$BRANCH_ID/products/$PRODUCT_ID/stock" \
+  -H 'Content-Type: application/json' \
+  -d '{"stock":40}'
 ```
 
-Send the first request again. Expect `409 Conflict`, because Franchise names are unique.
-This shows that the data is stored in RDS.
+Get the top-stock report. Expect `200 OK`, with `Espresso` and stock `40` as the top Product of `Uptown`:
+
+```bash
+curl -i -u "$CREDENTIAL" "$ALB_URL/franchises/$FRANCHISE_ID/top-stock-products"
+```
+
+Delete the Product. Expect `204 No Content`:
+
+```bash
+curl -i -u "$CREDENTIAL" -X DELETE "$ALB_URL/franchises/$FRANCHISE_ID/branches/$BRANCH_ID/products/$PRODUCT_ID"
+```
+
+Create a Franchise with the new name again. Expect `409 Conflict`, because Franchise names are unique.
+This shows that the data is stored in RDS:
+
+```bash
+curl -i -u "$CREDENTIAL" -X POST "$ALB_URL/franchises" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Smoke Test Franchise Renamed"}'
+```
 
 Check that the ALB hides the actuator. Expect `404 Not Found` from both requests:
 
@@ -369,6 +444,7 @@ curl -i "$ALB_URL/actuator/health"
 ```
 
 The ALB health check still reaches `/actuator/health/readiness`, because it calls each task directly and does not pass through the listener.
+The app keeps `/actuator/health/**` public, so the health check needs no credentials.
 
 ### 8. Deploy a new version
 
@@ -415,7 +491,34 @@ To rotate the password by hand:
      --force-new-deployment
    ```
 
-### 10. Destroy
+### 10. Rotate the API Credential
+
+There is no automatic rotation, and the app accepts only one API Credential at a time.
+To rotate it by hand:
+
+1. Increase `api_credential_version` by 1 in `envs/dev.tfvars` (for example from `1` to `2`). Commit the change, so the version is never applied back to an old value.
+2. Apply with the current Image Tag:
+
+   ```bash
+   terraform apply -var-file=envs/dev.tfvars -var image_tag=<current-tag>
+   ```
+
+   Terraform generates a new password and writes it, with the username (`api_client_username`, default `inventory-client`), to the API Secret. To change the username, set `api_client_username` in the same apply.
+3. Start a new ECS deployment. The app reads the API Secret only at startup, so the running tasks keep the old credential:
+
+   ```bash
+   aws ecs update-service \
+     --cluster "$(terraform output -raw ecs_cluster_name)" \
+     --service "$(terraform output -raw ecs_service_name)" \
+     --force-new-deployment
+   ```
+
+   While the old and the new tasks run side by side, a call can get `401` with either credential. When the deployment is done, only the new credential works.
+4. Read the new API Credential as in step 7 and give it to the Client.
+
+The root README section [Authentication](../../README.md#3-authentication) describes the protected routes and the `401` answer.
+
+### 11. Destroy
 
 Destroy the Root Composition first. Destroy the Bootstrap Stack last.
 
@@ -429,7 +532,7 @@ In `dev`, this removes everything without a manual step:
 
 - `ecr_force_delete = true`, so the repository is deleted with its images.
 - `db_skip_final_snapshot = true`, so RDS takes no final snapshot.
-- `db_secret_recovery_window_days = 0`, so Secrets Manager deletes the DB Secret at once. The next apply can create a secret with the same name.
+- `db_secret_recovery_window_days = 0` and `api_secret_recovery_window_days = 0`, so Secrets Manager deletes the DB Secret and the API Secret at once. The next apply can create secrets with the same names.
 
 In `staging` and `prod`, the settings protect the data, so destroy needs more steps:
 
@@ -441,11 +544,14 @@ In `staging` and `prod`, the settings protect the data, so destroy needs more st
   aws rds delete-db-snapshot --db-snapshot-identifier franchise-inventory-prod-db-final
   ```
 
-- The DB Secret has a recovery window (7 days in `staging`, 30 days in `prod`). During this window, the name `franchise-inventory-<env>-db` stays reserved, and a new apply cannot create the secret. To free the name at once, run:
+- The DB Secret and the API Secret have a recovery window (7 days in `staging`, 30 days in `prod`). During this window, the names `franchise-inventory-<env>-db` and `franchise-inventory-<env>-api-credential` stay reserved, and a new apply cannot create the secrets. To free the names at once, run:
 
   ```bash
   aws secretsmanager delete-secret \
     --secret-id franchise-inventory-prod-db \
+    --force-delete-without-recovery
+  aws secretsmanager delete-secret \
+    --secret-id franchise-inventory-prod-api-credential \
     --force-delete-without-recovery
   ```
 
@@ -480,22 +586,33 @@ terraform -chdir=bootstrap destroy
 
 ## Key decisions and trade-offs
 
-### The app reads the DB Secret itself
+### The app reads its secrets itself
 
-- The ECS task gets only three non-secret environment variables: `SPRING_PROFILES_ACTIVE=aws`, `DB_SECRET_NAME` and `AWS_REGION`. The task definition has no `secrets` block.
-- In the `aws` Spring profile (`applications/app-service/src/main/resources/application-aws.yaml`), Spring Cloud AWS imports the DB Secret at startup with `aws-secretsmanager:${DB_SECRET_NAME}?prefix=db.`. The secret keys `host`, `port`, `dbname`, `username` and `password` become `db.host`, `db.port` and so on. The profile maps them to `adapters.r2dbc.*`.
-- The task role can call only `secretsmanager:GetSecretValue`, and only on the DB Secret ARN.
-- Trade-off: the app reads the secret once. A new password reaches the app only after a new ECS deployment.
+- The ECS task gets only four non-secret environment variables: `SPRING_PROFILES_ACTIVE=aws`, `DB_SECRET_NAME`, `API_SECRET_NAME` and `AWS_REGION`. The task definition has no `secrets` block.
+- In the `aws` Spring profile (`applications/app-service/src/main/resources/application-aws.yaml`), Spring Cloud AWS imports both secrets at startup in one `spring.config.import`: `aws-secretsmanager:${DB_SECRET_NAME}?prefix=db.;${API_SECRET_NAME}?prefix=security.client.`. `;` separates the secrets, and each secret has its own prefix.
+  - The DB Secret keys `host`, `port`, `dbname`, `username` and `password` become `db.host`, `db.port` and so on. The profile maps them to `adapters.r2dbc.*`.
+  - The API Secret keys `username` and `password` become `security.client.username` and `security.client.password`, the API Credential that the app checks on every business route.
+- The task role can call only `secretsmanager:GetSecretValue`, and only on exactly two ARNs: the DB Secret and the API Secret.
+- Trade-off: the app reads the secrets once. A new password or API Credential reaches the app only after a new ECS deployment.
 
-Result: no credential is in the code, in a container environment variable or in the task definition.
+Result: no credential is in the code, in tfvars, in a container environment variable or in the task definition.
 
-### The password never enters the Terraform state
+### HTTP Basic with the API Secret
 
-- The nested module `modules/database/password` generates the password with an ephemeral resource (`aws_secretsmanager_random_password`). Terraform never stores ephemeral values in the plan or the state.
-- Terraform sends the password only to write-only arguments: `password_wo` on the RDS instance and `secret_string_wo` on the secret version. Terraform sends these values and does not keep them.
-- Both writes use `db_password_version` as their version. Terraform sends a write-only value only when its version changes, so RDS and the DB Secret always get the same password in the same apply.
-- The root has a second provider configuration, `aws.db_password` (same account and region). It exists only because `terraform test` cannot mock ephemeral resources. The tests mock the default provider and replace the password module with `override_module`. The production behavior is the same.
-- Trade-off: Terraform writes the DB Secret JSON only when `db_password_version` changes. If the RDS host or port changes later (for example, the instance is replaced), the DB Secret keeps the old values until you increase `db_password_version`. That apply also rotates the password.
+- The API requires HTTP Basic on every business route. The API Credential of the single Client lives in the API Secret, `franchise-inventory-<env>-api-credential`, as JSON with the keys `username` and `password`.
+- The username is not secret. It comes from `api_client_username` (default `inventory-client`). The password is an ephemeral random value of 40 characters, written only through a write-only argument (see the next section). `api_credential_version` in `envs/<env>.tfvars` drives the rotation.
+- The API Secret has the same recovery window as the DB Secret: 0 days in `dev`, 7 in `staging`, 30 in `prod`.
+- The app keeps `/actuator/health/**` public, so the ALB health check on `/actuator/health/readiness` needs no credentials. The ALB still answers `404` for `/actuator/*` from the internet.
+- **`prod` requires HTTPS.** A variable validation rejects `environment = "prod"` with an empty `alb_certificate_arn`. `envs/prod.tfvars` holds a placeholder ARN with the account `000000000000`. Replace it with the ARN of a real ACM certificate before any real `prod` apply.
+- **Accepted risk: Basic credentials over plain HTTP in `dev`, and in `staging` without a certificate.** HTTP Basic is only base64, so anyone who can read the traffic can read the API Credential. `dev` has no domain and no certificate. `staging` does not require a certificate, so it also sends the credential over plain HTTP when `alb_certificate_arn` is empty. The risk is accepted because only `dev` is deployed in this challenge, its data is disposable, and the credential can be rotated at any time. `staging` and `prod` are never deployed here.
+
+### The passwords never enter the Terraform state
+
+- The shared module `modules/password` generates the DB master password and the API Credential password with an ephemeral resource (`aws_secretsmanager_random_password`). Terraform never stores ephemeral values in the plan or the state.
+- Terraform sends each password only to write-only arguments: `password_wo` on the RDS instance, and `secret_string_wo` on the versions of the DB Secret and the API Secret. Terraform sends these values and does not keep them.
+- The DB writes use `db_password_version` as their version, and the API Secret write uses `api_credential_version`. Terraform sends a write-only value only when its version changes, so RDS and the DB Secret always get the same password in the same apply.
+- The root has a second provider configuration, `aws.ephemeral` (same account and region). It exists only because `terraform test` cannot mock ephemeral resources. The tests mock the default provider and replace both password modules with `override_module`. The production behavior is the same.
+- Trade-off: Terraform writes a secret JSON only when its version changes. If the RDS host or port changes later (for example, the instance is replaced), the DB Secret keeps the old values until you increase `db_password_version`. That apply also rotates the password. In the same way, a new `api_client_username` reaches the API Secret only with the next `api_credential_version`.
 
 ### Public subnets in place of a NAT Gateway in `dev`
 
@@ -530,7 +647,7 @@ The target group health check calls `/actuator/health/readiness` directly on eac
 
 - **SSL to RDS:** the `aws` profile sets `ssl-mode: require` for R2DBC and Flyway. The default RDS parameter group for PostgreSQL 15 and later sets `rds.force_ssl = 1`, so RDS also rejects connections without SSL.
 - **CORS closed:** no frontend is planned, so the `aws` profile sets `cors.allowed-origins` to an empty list. No browser origin can call the API.
-- **Least-privilege IAM:** the execution role can only pull from the Environment's ECR repository and write to its log group. The task role can only read the DB Secret. No AWS managed policy is attached. ECS Exec is off, so no SSM permission exists.
+- **Least-privilege IAM:** the execution role can only pull from the Environment's ECR repository and write to its log group. The task role can only read the DB Secret and the API Secret. No AWS managed policy is attached. ECS Exec is off, so no SSM permission exists.
 - **ALB hardening:** `drop_invalid_header_fields = true`. With a certificate, HTTP redirects to HTTPS with the policy `ELBSecurityPolicy-TLS13-1-2-2021-06`.
 
 ### Spring Cloud AWS and Spring Boot versions
@@ -553,7 +670,7 @@ Check this pair again when you upgrade either library.
 
 - After an apply, a second `plan` with the same tfvars and the same `image_tag` must show `No changes`.
 - Service Auto Scaling owns the task count after the first apply. The ECS service has `ignore_changes = [desired_count]`, so a later plan never resets a scale-out.
-- The write-only password arguments cause no diff. They change only when `db_password_version` changes.
+- The write-only password arguments cause no diff. They change only when `db_password_version` or `api_credential_version` changes.
 
 ### Versioning
 
@@ -590,8 +707,8 @@ What `terraform test` covers:
 
 - Every test uses a mocked AWS provider and `command = plan`. No test calls AWS.
 - There is one test file per Environment: `tests/dev.tftest.hcl`, `tests/staging.tftest.hcl` and `tests/prod.tftest.hcl`. `terraform test` cannot load a `-var-file`, so each file repeats the values of its `envs/<env>.tfvars`. **When you change a tfvars file, change its test file in the same commit.**
-- Each Environment file plans twice: once without an Image Tag (first apply) and once with an Image Tag (service). It asserts the network layout, the ECR settings, the RDS settings, the DB Secret, the SG rules, the IAM policy scope, the absence of credentials in the container environment, the actuator rule, the capacity provider, the scaling settings and the budget.
-- `tests/inputs.tftest.hcl` tests the variable validations (for example, an invalid `image_tag`, private tasks without a NAT Gateway, or a missing budget email) and the optional paths (HTTPS with a certificate, restricted ALB ingress).
+- Each Environment file plans twice: once without an Image Tag (first apply) and once with an Image Tag (service). It asserts the network layout, the ECR settings, the RDS settings, the DB Secret, the API Secret (name, recovery window, no plaintext `secret_string`), the SG rules, the IAM policy scope (exactly the two secret ARNs in the task role), the four container environment variables and the absence of credentials in them, the actuator rule, the capacity provider, the scaling settings and the budget. `tests/prod.tftest.hcl` also asserts the HTTPS listener and that `prod` without a certificate is rejected.
+- `tests/inputs.tftest.hcl` tests the variable validations (for example, an invalid `image_tag`, private tasks without a NAT Gateway, or a missing budget email), the API Credential version, and the variants of the ALB (HTTPS with a certificate, plain HTTP in `staging` without one, restricted ingress).
 
 No other scanners (for example checkov or trivy) are used.
 The agreed scope is these four checks, and the plan-level tests already assert the security rules that matter here: IAM scope, no credentials and network exposure.
@@ -607,7 +724,7 @@ These resources cost money while `dev` runs:
 - **Fargate Spot:** billed per vCPU-hour and per GB-hour, for 1 task (up to 2 under load) of 0.5 vCPU and 1 GB.
 - **Public IPv4 addresses:** billed per hour. The ALB uses one per AZ, and each `dev` task has one.
 - **NAT Gateway:** billed per hour and per GB processed, plus its Elastic IP. Only `staging` and `prod` enable it.
-- **Small items:** CloudWatch Logs ingestion and storage (7 days), ECR storage (10 images at most), the DB Secret, and the S3 state bucket.
+- **Small items:** CloudWatch Logs ingestion and storage (7 days), ECR storage (10 images at most), the two secrets (DB Secret and API Secret, billed per secret per month), and the S3 state bucket.
 
 Container Insights is off, and there are no VPC endpoints, to avoid more hourly or metric charges.
 
@@ -618,8 +735,8 @@ Destroy `dev` when you do not use it.
 
 ## Known limits and future work
 
-- **No automatic secret rotation and no runtime reload.** Rotation is the manual `db_password_version` step. The app reads the DB Secret only at startup, so a rotation needs a new ECS deployment.
-- **No HTTPS domain.** The ALB serves HTTP on port 80. Set `alb_certificate_arn` to an ACM certificate ARN to add HTTPS on port 443 with a redirect from HTTP.
+- **No automatic secret rotation and no runtime reload.** Rotation is the manual `db_password_version` and `api_credential_version` steps. The app reads both secrets only at startup, so a rotation needs a new ECS deployment.
+- **No HTTPS in `dev`.** `dev` has no domain, so its ALB serves HTTP on port 80 and the API Credential travels without encryption (see "Key decisions"). `prod` requires an ACM certificate, and `staging` adds HTTPS on port 443 with a redirect from HTTP when `alb_certificate_arn` is set.
 - **No `verify-full` SSL.** The app uses `require`: the connection is encrypted, but the app does not verify the RDS certificate against the RDS CA bundle.
 - **No CI/CD pipeline.** A developer runs Terraform by hand. `publish-image.sh` is non-interactive, writes logs to stderr and prints only the Image Tag, so a CD pipeline can call it later.
 - **Fixed final snapshot name.** In `staging` and `prod`, a second destroy fails until the old `franchise-inventory-<env>-db-final` snapshot is deleted.
