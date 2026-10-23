@@ -40,9 +40,6 @@ import org.springframework.web.server.ServerWebInputException;
 import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -54,9 +51,7 @@ public class Handler {
     private static final String INVALID_PREFIX = "INVALID_";
     private static final String NOT_FOUND_SUFFIX = "_NOT_FOUND";
     private static final String DUPLICATE_PREFIX = "DUPLICATE_";
-    private static final String STOCK_FIELD = "stock";
 
-    private final JsonMapper jsonMapper;
     private final CreateFranchiseUseCase createFranchiseUseCase;
     private final AddBranchUseCase addBranchUseCase;
     private final AddProductUseCase addProductUseCase;
@@ -130,7 +125,9 @@ public class Handler {
         return Mono.zip(parseId(serverRequest.pathVariable(ApiPaths.FRANCHISE_ID)),
                         parseId(serverRequest.pathVariable(ApiPaths.BRANCH_ID)),
                         parseId(serverRequest.pathVariable(ApiPaths.ID)))
-                .flatMap(ids -> readRenameProductBody(serverRequest)
+                .flatMap(ids -> readBody(serverRequest, RenameProductRequest.class)
+                        .filter(request -> !request.hasStock())
+                        .switchIfEmpty(Mono.error(() -> new BusinessException(ErrorCode.INVALID_PRODUCT_UPDATE)))
                         .flatMap(request -> renameProductUseCase.execute(ids.getT1(), ids.getT2(), ids.getT3(),
                                 request.name())))
                 .flatMap(product -> ServerResponse.ok().bodyValue(toResponse(product)))
@@ -185,20 +182,6 @@ public class Handler {
         return serverRequest.bodyToMono(type)
                 .onErrorMap(ServerWebInputException.class,
                         error -> new BusinessException(ErrorCode.INVALID_REQUEST, error))
-                .switchIfEmpty(Mono.error(() -> new BusinessException(ErrorCode.INVALID_REQUEST)));
-    }
-
-    /**
-     * A Product rename changes only the name, so a stock key is rejected before the name is read.
-     * The check is on the raw body, which tells a missing key apart from a key with a null value.
-     */
-    private Mono<RenameProductRequest> readRenameProductBody(ServerRequest serverRequest) {
-        return readBody(serverRequest, JsonNode.class)
-                .filter(body -> !body.has(STOCK_FIELD))
-                .switchIfEmpty(Mono.error(() -> new BusinessException(ErrorCode.INVALID_PRODUCT_UPDATE)))
-                .flatMap(body -> Mono.fromCallable(() -> jsonMapper.treeToValue(body, RenameProductRequest.class))
-                        .onErrorMap(JacksonException.class,
-                                error -> new BusinessException(ErrorCode.INVALID_REQUEST, error)))
                 .switchIfEmpty(Mono.error(() -> new BusinessException(ErrorCode.INVALID_REQUEST)));
     }
 
