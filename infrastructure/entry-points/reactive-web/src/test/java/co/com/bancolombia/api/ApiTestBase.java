@@ -1,6 +1,8 @@
 package co.com.bancolombia.api;
 
+import co.com.bancolombia.api.config.ApiCredentialProperties;
 import co.com.bancolombia.api.config.JacksonConfig;
+import co.com.bancolombia.api.config.SecurityConfig;
 import co.com.bancolombia.usecase.addbranch.AddBranchUseCase;
 import co.com.bancolombia.usecase.addproduct.AddProductUseCase;
 import co.com.bancolombia.usecase.createfranchise.CreateFranchiseUseCase;
@@ -10,6 +12,7 @@ import co.com.bancolombia.usecase.renamebranch.RenameBranchUseCase;
 import co.com.bancolombia.usecase.renamefranchise.RenameFranchiseUseCase;
 import co.com.bancolombia.usecase.renameproduct.RenameProductUseCase;
 import co.com.bancolombia.usecase.updateproductstock.UpdateProductStockUseCase;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webflux.test.autoconfigure.WebFluxTest;
 import org.springframework.test.context.ContextConfiguration;
@@ -18,12 +21,21 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 
 /** The full route table with every use case mocked, shared by the handler tests so they reuse one context. */
 @ContextConfiguration(classes = {RouterRest.class, FranchiseHandler.class, BranchHandler.class,
-        ProductHandler.class, TopStockHandler.class, JacksonConfig.class})
+        ProductHandler.class, TopStockHandler.class, JacksonConfig.class, SecurityConfig.class})
 @WebFluxTest
 public abstract class ApiTestBase {
 
-    @Autowired
+    /** Sends the test API Credential with every request, so the routes behave exactly as before authentication. */
     protected WebTestClient webTestClient;
+
+    /** Sends no credential, for the tests that exercise authentication itself. */
+    protected WebTestClient anonymousClient;
+
+    @Autowired
+    protected ApiCredentialProperties credential;
+
+    @Autowired
+    private WebTestClient client;
 
     @MockitoBean
     protected CreateFranchiseUseCase createFranchiseUseCase;
@@ -51,4 +63,12 @@ public abstract class ApiTestBase {
 
     @MockitoBean
     protected GetTopStockReportUseCase getTopStockReportUseCase;
+
+    @BeforeEach
+    void authenticateAsClient() {
+        anonymousClient = client;
+        webTestClient = client.mutate()
+                .defaultHeaders(headers -> headers.setBasicAuth(credential.username(), credential.password()))
+                .build();
+    }
 }

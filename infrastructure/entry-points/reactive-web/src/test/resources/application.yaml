@@ -1,0 +1,5 @@
+# Test API Credential for every @WebFluxTest slice in this module; never used outside the tests
+security:
+  client:
+    username: "test-client"
+    password: "test-only-api-credential-password-0123456789"
