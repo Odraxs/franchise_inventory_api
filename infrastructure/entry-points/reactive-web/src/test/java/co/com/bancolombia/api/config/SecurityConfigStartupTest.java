@@ -17,10 +17,12 @@ class SecurityConfigStartupTest {
     private static final String PASSWORD_KEY = "security.client.password";
     private static final String USERNAME = "security.client.username=test-client";
     private static final String PASSWORD = "security.client.password=test-only-api-credential-password-0123456789";
+    private static final String ALLOWED_ORIGINS = "cors.allowed-origins=http://localhost:4200";
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-            .withUserConfiguration(SecurityConfig.class)
-            .withBean(ServerCodecConfigurer.class, ServerCodecConfigurer::create);
+            .withUserConfiguration(SecurityConfig.class, CorsConfig.class)
+            .withBean(ServerCodecConfigurer.class, ServerCodecConfigurer::create)
+            .withPropertyValues(ALLOWED_ORIGINS);
 
     @Test
     void startsWithACompleteApiCredential() {

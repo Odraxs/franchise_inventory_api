@@ -1,6 +1,7 @@
 package co.com.bancolombia.api;
 
 import co.com.bancolombia.api.config.ApiCredentialProperties;
+import co.com.bancolombia.api.config.CorsConfig;
 import co.com.bancolombia.api.config.JacksonConfig;
 import co.com.bancolombia.api.config.SecurityConfig;
 import co.com.bancolombia.usecase.addbranch.AddBranchUseCase;
@@ -21,7 +22,8 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 
 /** The full route table with every use case mocked, shared by the handler tests so they reuse one context. */
 @ContextConfiguration(classes = {RouterRest.class, FranchiseHandler.class, BranchHandler.class,
-        ProductHandler.class, TopStockHandler.class, JacksonConfig.class, SecurityConfig.class})
+        ProductHandler.class, TopStockHandler.class, JacksonConfig.class, SecurityConfig.class,
+        CorsConfig.class})
 @WebFluxTest
 public abstract class ApiTestBase {
 

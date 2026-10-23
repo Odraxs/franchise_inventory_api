@@ -3,3 +3,6 @@ security:
   client:
     username: "test-client"
     password: "test-only-api-credential-password-0123456789"
+# The one origin the CORS tests treat as allowed
+cors:
+  allowed-origins: "http://localhost:4200"
