@@ -1,0 +1,786 @@
+openapi: 3.1.0
+info:
+  title: Franchise Inventory API
+  version: 1.0.0
+  description: |
+    Manages franchises, their branches and the products each branch stocks, and reports the
+    product with the most stock in every branch of a franchise.
+
+    **Error contract.** Every error answers with an `ErrorResponse` (`code` + `message`). The code name sets the status:
+
+    | Code | Status |
+    |---|---|
+    | `INVALID_*` (malformed body, wrong field type, malformed UUID, invalid value) | 400 |
+    | `UNAUTHORIZED` (missing, wrong or malformed API Credential) | 401 |
+    | `*_NOT_FOUND` | 404 |
+    | `DUPLICATE_*` (names are unique case-insensitively) | 409 |
+    | `DATABASE_UNAVAILABLE` | 503 |
+
+    **Authentication.** Every operation needs the API Credential of the trusted client, sent with HTTP Basic
+    (`Authorization: Basic base64(username:password)`). Use **Authorize** before **Try it out**.
+    These docs are public; health is public too and is not listed here.
+
+    Names are stripped of surrounding whitespace and must have 1 to 100 characters. Stock is an integer from 0 to 2147483647.
+servers:
+  - url: /
+    description: Local
+# Every operation needs the API Credential; Swagger UI's "Authorize" sends it on "Try it out"
+security:
+  - basicAuth: []
+tags:
+  - name: Franchises
+    description: Create and rename franchises
+  - name: Branches
+    description: Add and rename the branches of a franchise
+  - name: Products
+    description: Add, rename, delete and restock the products of a branch
+  - name: Reports
+    description: Stock reports across the branches of a franchise
+
+paths:
+  /franchises:
+    post:
+      tags: [Franchises]
+      operationId: createFranchise
+      summary: Create a franchise
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFranchiseRequest'
+            examples:
+              valid:
+                summary: A new franchise
+                value:
+                  name: Burger Town
+      responses:
+        '201':
+          description: Franchise created
+          headers:
+            Location:
+              description: URI of the new franchise
+              schema:
+                type: string
+              example: /franchises/3f2b8c1e-5d4a-4e7b-9c1f-2a6d8e0b4c71
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FranchiseResponse'
+              example:
+                id: 3f2b8c1e-5d4a-4e7b-9c1f-2a6d8e0b4c71
+                name: Burger Town
+        '400':
+          description: Malformed body or invalid name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                INVALID_REQUEST:
+                  $ref: '#/components/examples/InvalidRequest'
+                INVALID_FRANCHISE_NAME:
+                  $ref: '#/components/examples/InvalidFranchiseName'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/DuplicateFranchiseName'
+        '503':
+          $ref: '#/components/responses/DatabaseUnavailable'
+
+  /franchises/{id}:
+    patch:
+      tags: [Franchises]
+      operationId: renameFranchise
+      summary: Rename a franchise
+      parameters:
+        - $ref: '#/components/parameters/FranchiseIdAsId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenameFranchiseRequest'
+            examples:
+              valid:
+                summary: A new name
+                value:
+                  name: Burger Town Express
+      responses:
+        '200':
+          description: Franchise renamed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FranchiseResponse'
+              example:
+                id: 3f2b8c1e-5d4a-4e7b-9c1f-2a6d8e0b4c71
+                name: Burger Town Express
+        '400':
+          description: Malformed id or body, or invalid name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                INVALID_REQUEST:
+                  $ref: '#/components/examples/InvalidRequest'
+                INVALID_FRANCHISE_NAME:
+                  $ref: '#/components/examples/InvalidFranchiseName'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/FranchiseNotFound'
+        '409':
+          $ref: '#/components/responses/DuplicateFranchiseName'
+        '503':
+          $ref: '#/components/responses/DatabaseUnavailable'
+
+  /franchises/{franchiseId}/branches:
+    post:
+      tags: [Branches]
+      operationId: addBranch
+      summary: Add a branch to a franchise
+      parameters:
+        - $ref: '#/components/parameters/FranchiseId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBranchRequest'
+            examples:
+              valid:
+                summary: A new branch
+                value:
+                  name: Downtown
+      responses:
+        '201':
+          description: Branch created
+          headers:
+            Location:
+              description: URI of the new branch
+              schema:
+                type: string
+              example: /franchises/3f2b8c1e-5d4a-4e7b-9c1f-2a6d8e0b4c71/branches/8a1d4f6b-2c3e-4b5a-9d7f-1e0c2b4a6d83
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BranchResponse'
+              example:
+                id: 8a1d4f6b-2c3e-4b5a-9d7f-1e0c2b4a6d83
+                name: Downtown
+        '400':
+          description: Malformed id or body, or invalid name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                INVALID_REQUEST:
+                  $ref: '#/components/examples/InvalidRequest'
+                INVALID_BRANCH_NAME:
+                  $ref: '#/components/examples/InvalidBranchName'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/FranchiseNotFound'
+        '409':
+          $ref: '#/components/responses/DuplicateBranchName'
+        '503':
+          $ref: '#/components/responses/DatabaseUnavailable'
+
+  /franchises/{franchiseId}/branches/{id}:
+    patch:
+      tags: [Branches]
+      operationId: renameBranch
+      summary: Rename a branch
+      parameters:
+        - $ref: '#/components/parameters/FranchiseId'
+        - $ref: '#/components/parameters/BranchIdAsId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenameBranchRequest'
+            examples:
+              valid:
+                summary: A new name
+                value:
+                  name: Downtown Plaza
+      responses:
+        '200':
+          description: Branch renamed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BranchResponse'
+              example:
+                id: 8a1d4f6b-2c3e-4b5a-9d7f-1e0c2b4a6d83
+                name: Downtown Plaza
+        '400':
+          description: Malformed id or body, or invalid name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                INVALID_REQUEST:
+                  $ref: '#/components/examples/InvalidRequest'
+                INVALID_BRANCH_NAME:
+                  $ref: '#/components/examples/InvalidBranchName'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/FranchiseOrBranchNotFound'
+        '409':
+          $ref: '#/components/responses/DuplicateBranchName'
+        '503':
+          $ref: '#/components/responses/DatabaseUnavailable'
+
+  /franchises/{franchiseId}/branches/{branchId}/products:
+    post:
+      tags: [Products]
+      operationId: addProduct
+      summary: Add a product with its initial stock to a branch
+      parameters:
+        - $ref: '#/components/parameters/FranchiseId'
+        - $ref: '#/components/parameters/BranchId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProductRequest'
+            examples:
+              valid:
+                summary: A new product
+                value:
+                  name: Cheeseburger
+                  stock: 25
+      responses:
+        '201':
+          description: Product created
+          headers:
+            Location:
+              description: URI of the new product
+              schema:
+                type: string
+              example: /franchises/3f2b8c1e-5d4a-4e7b-9c1f-2a6d8e0b4c71/branches/8a1d4f6b-2c3e-4b5a-9d7f-1e0c2b4a6d83/products/c4e9a2d7-6b1f-4a3c-8e5d-0f7b9a1c3e25
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+              example:
+                id: c4e9a2d7-6b1f-4a3c-8e5d-0f7b9a1c3e25
+                name: Cheeseburger
+                stock: 25
+        '400':
+          description: Malformed id or body, invalid name or invalid stock
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                INVALID_REQUEST:
+                  $ref: '#/components/examples/InvalidRequest'
+                INVALID_PRODUCT_NAME:
+                  $ref: '#/components/examples/InvalidProductName'
+                INVALID_STOCK:
+                  $ref: '#/components/examples/InvalidStock'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/FranchiseOrBranchNotFound'
+        '409':
+          $ref: '#/components/responses/DuplicateProductName'
+        '503':
+          $ref: '#/components/responses/DatabaseUnavailable'
+
+  /franchises/{franchiseId}/branches/{branchId}/products/{id}:
+    patch:
+      tags: [Products]
+      operationId: renameProduct
+      summary: Rename a product
+      description: Changes only the name. A body that also sends `stock` (even `null`) is rejected with `INVALID_PRODUCT_UPDATE`; change the stock through `PATCH .../stock`.
+      parameters:
+        - $ref: '#/components/parameters/FranchiseId'
+        - $ref: '#/components/parameters/BranchId'
+        - $ref: '#/components/parameters/ProductIdAsId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenameProductRequest'
+            examples:
+              valid:
+                summary: A new name
+                value:
+                  name: Double Cheeseburger
+      responses:
+        '200':
+          description: Product renamed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+              example:
+                id: c4e9a2d7-6b1f-4a3c-8e5d-0f7b9a1c3e25
+                name: Double Cheeseburger
+                stock: 25
+        '400':
+          description: Malformed id or body, invalid name, or a body that sends stock
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                INVALID_REQUEST:
+                  $ref: '#/components/examples/InvalidRequest'
+                INVALID_PRODUCT_NAME:
+                  $ref: '#/components/examples/InvalidProductName'
+                INVALID_PRODUCT_UPDATE:
+                  $ref: '#/components/examples/InvalidProductUpdate'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/FranchiseBranchOrProductNotFound'
+        '409':
+          $ref: '#/components/responses/DuplicateProductName'
+        '503':
+          $ref: '#/components/responses/DatabaseUnavailable'
+    delete:
+      tags: [Products]
+      operationId: deleteProduct
+      summary: Delete a product from a branch
+      description: Soft delete. The product stops appearing in reports and its name can be reused in the branch.
+      parameters:
+        - $ref: '#/components/parameters/FranchiseId'
+        - $ref: '#/components/parameters/BranchId'
+        - $ref: '#/components/parameters/ProductIdAsId'
+      responses:
+        '204':
+          description: Product deleted
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/FranchiseBranchOrProductNotFound'
+        '503':
+          $ref: '#/components/responses/DatabaseUnavailable'
+
+  /franchises/{franchiseId}/branches/{branchId}/products/{id}/stock:
+    patch:
+      tags: [Products]
+      operationId: updateProductStock
+      summary: Update the stock of a product
+      description: Replaces the stock with the given value.
+      parameters:
+        - $ref: '#/components/parameters/FranchiseId'
+        - $ref: '#/components/parameters/BranchId'
+        - $ref: '#/components/parameters/ProductIdAsId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStockRequest'
+            examples:
+              valid:
+                summary: A new stock
+                value:
+                  stock: 40
+      responses:
+        '200':
+          description: Stock updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+              example:
+                id: c4e9a2d7-6b1f-4a3c-8e5d-0f7b9a1c3e25
+                name: Cheeseburger
+                stock: 40
+        '400':
+          description: Malformed id or body, or invalid stock
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                INVALID_REQUEST:
+                  $ref: '#/components/examples/InvalidRequest'
+                INVALID_STOCK:
+                  $ref: '#/components/examples/InvalidStock'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/FranchiseBranchOrProductNotFound'
+        '503':
+          $ref: '#/components/responses/DatabaseUnavailable'
+
+  /franchises/{franchiseId}/top-stock-products:
+    get:
+      tags: [Reports]
+      operationId: getTopStockProducts
+      summary: Report the product with the most stock in each branch
+      description: |
+        One entry per branch of the franchise, sorted by branch name ignoring case. On a stock tie the oldest product wins.
+        A branch with no products has `topProduct: null`. A franchise with no branches has an empty `branches` list.
+      parameters:
+        - $ref: '#/components/parameters/FranchiseId'
+      responses:
+        '200':
+          description: Top-stock report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopStockReportResponse'
+              example:
+                franchiseId: 3f2b8c1e-5d4a-4e7b-9c1f-2a6d8e0b4c71
+                branches:
+                  - branchId: 8a1d4f6b-2c3e-4b5a-9d7f-1e0c2b4a6d83
+                    branchName: Downtown
+                    topProduct:
+                      id: c4e9a2d7-6b1f-4a3c-8e5d-0f7b9a1c3e25
+                      name: Cheeseburger
+                      stock: 40
+                  - branchId: 5b7e0c2a-9d4f-4e1b-8a6c-3f2d1e0a9b47
+                    branchName: Uptown
+                    topProduct: null
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/FranchiseNotFound'
+        '503':
+          $ref: '#/components/responses/DatabaseUnavailable'
+
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: The API Credential (username and password) of the trusted client.
+
+  parameters:
+    FranchiseId:
+      name: franchiseId
+      in: path
+      required: true
+      description: Franchise id. A malformed UUID answers 400 `INVALID_REQUEST`.
+      schema:
+        type: string
+        format: uuid
+      example: 3f2b8c1e-5d4a-4e7b-9c1f-2a6d8e0b4c71
+    FranchiseIdAsId:
+      name: id
+      in: path
+      required: true
+      description: Franchise id. A malformed UUID answers 400 `INVALID_REQUEST`.
+      schema:
+        type: string
+        format: uuid
+      example: 3f2b8c1e-5d4a-4e7b-9c1f-2a6d8e0b4c71
+    BranchId:
+      name: branchId
+      in: path
+      required: true
+      description: Branch id. A malformed UUID answers 400 `INVALID_REQUEST`.
+      schema:
+        type: string
+        format: uuid
+      example: 8a1d4f6b-2c3e-4b5a-9d7f-1e0c2b4a6d83
+    BranchIdAsId:
+      name: id
+      in: path
+      required: true
+      description: Branch id. A malformed UUID answers 400 `INVALID_REQUEST`.
+      schema:
+        type: string
+        format: uuid
+      example: 8a1d4f6b-2c3e-4b5a-9d7f-1e0c2b4a6d83
+    ProductIdAsId:
+      name: id
+      in: path
+      required: true
+      description: Product id. A malformed UUID answers 400 `INVALID_REQUEST`.
+      schema:
+        type: string
+        format: uuid
+      example: c4e9a2d7-6b1f-4a3c-8e5d-0f7b9a1c3e25
+
+  schemas:
+    Name:
+      type: string
+      minLength: 1
+      maxLength: 100
+      description: Stripped of surrounding whitespace; 1 to 100 characters after stripping.
+    Stock:
+      type: integer
+      format: int32
+      minimum: 0
+      maximum: 2147483647
+    CreateFranchiseRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          $ref: '#/components/schemas/Name'
+    RenameFranchiseRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          $ref: '#/components/schemas/Name'
+    FranchiseResponse:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+    CreateBranchRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          $ref: '#/components/schemas/Name'
+    RenameBranchRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          $ref: '#/components/schemas/Name'
+    BranchResponse:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+    CreateProductRequest:
+      type: object
+      required: [name, stock]
+      properties:
+        name:
+          $ref: '#/components/schemas/Name'
+        stock:
+          $ref: '#/components/schemas/Stock'
+    RenameProductRequest:
+      type: object
+      required: [name]
+      description: Only the name. Sending `stock` answers 400 `INVALID_PRODUCT_UPDATE`.
+      properties:
+        name:
+          $ref: '#/components/schemas/Name'
+    UpdateStockRequest:
+      type: object
+      required: [stock]
+      properties:
+        stock:
+          $ref: '#/components/schemas/Stock'
+    ProductResponse:
+      type: object
+      required: [id, name, stock]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        stock:
+          $ref: '#/components/schemas/Stock'
+    BranchTopStockResponse:
+      type: object
+      required: [branchId, branchName, topProduct]
+      properties:
+        branchId:
+          type: string
+          format: uuid
+        branchName:
+          type: string
+        topProduct:
+          description: The product with the most stock, or null when the branch has no products.
+          oneOf:
+            - $ref: '#/components/schemas/ProductResponse'
+            - type: 'null'
+    TopStockReportResponse:
+      type: object
+      required: [franchiseId, branches]
+      properties:
+        franchiseId:
+          type: string
+          format: uuid
+        branches:
+          type: array
+          items:
+            $ref: '#/components/schemas/BranchTopStockResponse'
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Error code; its name sets the HTTP status.
+        message:
+          type: string
+
+  examples:
+    InvalidRequest:
+      summary: Malformed body, wrong field type or malformed UUID
+      value:
+        code: INVALID_REQUEST
+        message: The request is malformed or has a field of the wrong type
+    InvalidFranchiseName:
+      summary: Blank name or longer than 100 characters
+      value:
+        code: INVALID_FRANCHISE_NAME
+        message: The franchise name must not be blank and must have at most 100 characters
+    InvalidBranchName:
+      summary: Blank name or longer than 100 characters
+      value:
+        code: INVALID_BRANCH_NAME
+        message: The branch name must not be blank and must have at most 100 characters
+    InvalidProductName:
+      summary: Blank name or longer than 100 characters
+      value:
+        code: INVALID_PRODUCT_NAME
+        message: The product name must not be blank and must have at most 100 characters
+    InvalidProductUpdate:
+      summary: The rename body sends stock
+      value:
+        code: INVALID_PRODUCT_UPDATE
+        message: Only the name changes here; update the stock through the stock endpoint
+    InvalidStock:
+      summary: Missing or negative stock
+      value:
+        code: INVALID_STOCK
+        message: The stock must be an integer from 0 to 2147483647
+    FranchiseNotFound:
+      summary: No franchise with this id
+      value:
+        code: FRANCHISE_NOT_FOUND
+        message: The franchise does not exist
+    BranchNotFound:
+      summary: No branch with this id in the franchise
+      value:
+        code: BRANCH_NOT_FOUND
+        message: The branch does not exist in the franchise
+    ProductNotFound:
+      summary: No product with this id in the branch (or it was deleted)
+      value:
+        code: PRODUCT_NOT_FOUND
+        message: The product does not exist in the branch
+
+  responses:
+    Unauthorized:
+      description: Missing, wrong or malformed API Credential
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+          example: Basic realm="franchise-inventory"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            UNAUTHORIZED:
+              value:
+                code: UNAUTHORIZED
+                message: A valid API credential is required, sent with HTTP Basic
+    InvalidRequest:
+      description: Malformed id
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            INVALID_REQUEST:
+              $ref: '#/components/examples/InvalidRequest'
+    FranchiseNotFound:
+      description: The franchise does not exist
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            FRANCHISE_NOT_FOUND:
+              $ref: '#/components/examples/FranchiseNotFound'
+    FranchiseOrBranchNotFound:
+      description: The franchise does not exist, or the branch does not exist in it
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            FRANCHISE_NOT_FOUND:
+              $ref: '#/components/examples/FranchiseNotFound'
+            BRANCH_NOT_FOUND:
+              $ref: '#/components/examples/BranchNotFound'
+    FranchiseBranchOrProductNotFound:
+      description: The franchise, the branch in it, or the product in the branch does not exist
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            FRANCHISE_NOT_FOUND:
+              $ref: '#/components/examples/FranchiseNotFound'
+            BRANCH_NOT_FOUND:
+              $ref: '#/components/examples/BranchNotFound'
+            PRODUCT_NOT_FOUND:
+              $ref: '#/components/examples/ProductNotFound'
+    DuplicateFranchiseName:
+      description: Another franchise already has this name (case-insensitive)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            DUPLICATE_FRANCHISE_NAME:
+              value:
+                code: DUPLICATE_FRANCHISE_NAME
+                message: A franchise with this name already exists
+    DuplicateBranchName:
+      description: Another branch of the franchise already has this name (case-insensitive)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            DUPLICATE_BRANCH_NAME:
+              value:
+                code: DUPLICATE_BRANCH_NAME
+                message: A branch with this name already exists in the franchise
+    DuplicateProductName:
+      description: Another product of the branch already has this name (case-insensitive)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            DUPLICATE_PRODUCT_NAME:
+              value:
+                code: DUPLICATE_PRODUCT_NAME
+                message: A product with this name already exists in the branch
+    DatabaseUnavailable:
+      description: The database is unreachable, slow, or its circuit breaker is open
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            DATABASE_UNAVAILABLE:
+              value:
+                code: DATABASE_UNAVAILABLE
+                message: The database is unavailable, try again later

@@ -16,7 +16,8 @@ import org.springframework.web.cors.reactive.CorsConfigurationSource;
 
 /**
  * Every exchange needs the API Credential of the single trusted Client, sent with HTTP Basic,
- * except health (the ALB and ECS checks send no credential) and CORS preflight (browsers send none).
+ * except health (the ALB and ECS checks send no credential), CORS preflight (browsers send none)
+ * and the API docs (an evaluator reads them before having the credential; "Try it out" still sends it).
  * The chain is stateless: no session, security context store, saved request, cookie or CSRF token.
  */
 @Configuration
@@ -24,6 +25,9 @@ import org.springframework.web.cors.reactive.CorsConfigurationSource;
 @EnableConfigurationProperties(ApiCredentialProperties.class)
 public class SecurityConfig {
     private static final String HEALTH = "/actuator/health/**";
+    /** Swagger UI, its assets and config, and the static spec it loads. */
+    private static final String[] API_DOCS = {"/swagger-ui.html", "/swagger-ui/**", "/webjars/swagger-ui/**",
+            "/v3/api-docs/**", "/openapi.yaml"};
 
     @Bean
     SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http,
@@ -35,6 +39,7 @@ public class SecurityConfig {
                 .authorizeExchange(exchanges -> exchanges
                         .pathMatchers(HttpMethod.OPTIONS).permitAll()
                         .pathMatchers(HEALTH).permitAll()
+                        .pathMatchers(API_DOCS).permitAll()
                         .anyExchange().authenticated())
                 // Answers a preflight before authentication runs, with the CORS headers
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
