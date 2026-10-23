@@ -1,6 +1,8 @@
 package co.com.bancolombia.model.product.gateways;
 
+import co.com.bancolombia.model.product.BranchTopStock;
 import co.com.bancolombia.model.product.Product;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.UUID;
@@ -25,4 +27,10 @@ public interface ProductGateway {
      * Emits nothing when the Branch has no active Product with that id.
      */
     Mono<Product> updateStock(UUID id, UUID branchId, Integer stock);
+
+    /**
+     * Emits every Branch of the Franchise with its Top-Stock Product: the active Product with the highest stock,
+     * and on a tie the oldest one. A Branch with no active Product has a null topProduct.
+     */
+    Flux<BranchTopStock> findTopStockByFranchiseId(UUID franchiseId);
 }

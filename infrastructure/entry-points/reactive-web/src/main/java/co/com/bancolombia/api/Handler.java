@@ -1,6 +1,7 @@
 package co.com.bancolombia.api;
 
 import co.com.bancolombia.api.dto.BranchResponse;
+import co.com.bancolombia.api.dto.BranchTopStockResponse;
 import co.com.bancolombia.api.dto.CreateBranchRequest;
 import co.com.bancolombia.api.dto.CreateFranchiseRequest;
 import co.com.bancolombia.api.dto.ErrorResponse;
@@ -8,18 +9,21 @@ import co.com.bancolombia.api.dto.CreateProductRequest;
 import co.com.bancolombia.api.dto.FranchiseResponse;
 import co.com.bancolombia.api.dto.ProductResponse;
 import co.com.bancolombia.api.dto.UpdateStockRequest;
+import co.com.bancolombia.api.dto.TopStockReportResponse;
 import co.com.bancolombia.model.branch.Branch;
 import co.com.bancolombia.model.exception.BusinessException;
 import co.com.bancolombia.model.exception.BusinessException.ErrorCode;
 import co.com.bancolombia.model.exception.DomainException;
 import co.com.bancolombia.model.exception.TechnicalException;
 import co.com.bancolombia.model.franchise.Franchise;
+import co.com.bancolombia.model.product.BranchTopStock;
 import co.com.bancolombia.model.product.Product;
 import co.com.bancolombia.usecase.addbranch.AddBranchUseCase;
 import co.com.bancolombia.usecase.addproduct.AddProductUseCase;
 import co.com.bancolombia.usecase.createfranchise.CreateFranchiseUseCase;
 import co.com.bancolombia.usecase.deleteproduct.DeleteProductUseCase;
 import co.com.bancolombia.usecase.updateproductstock.UpdateProductStockUseCase;
+import co.com.bancolombia.usecase.gettopstockreport.GetTopStockReportUseCase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -28,8 +32,10 @@ import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import org.springframework.web.server.ServerWebInputException;
 import org.springframework.web.util.UriComponentsBuilder;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.Optional;
 import java.util.UUID;
 
 @Component
@@ -45,6 +51,7 @@ public class Handler {
     private final AddProductUseCase addProductUseCase;
     private final DeleteProductUseCase deleteProductUseCase;
     private final UpdateProductStockUseCase updateProductStockUseCase;
+    private final GetTopStockReportUseCase getTopStockReportUseCase;
 
     public Mono<ServerResponse> createFranchise(ServerRequest serverRequest) {
         return serverRequest.bodyToMono(CreateFranchiseRequest.class)
@@ -88,8 +95,7 @@ public class Handler {
                         .created(UriComponentsBuilder.fromPath(ApiPaths.PRODUCT)
                                 .build(serverRequest.pathVariable(ApiPaths.FRANCHISE_ID), product.branchId(),
                                         product.id()))
-                        .bodyValue(ProductResponse.builder().id(product.id()).name(product.name())
-                                .stock(product.stock()).build()))
+                        .bodyValue(toResponse(product)))
                 .transform(this::handleDomainErrors);
     }
 
@@ -112,10 +118,28 @@ public class Handler {
                         .switchIfEmpty(Mono.error(() -> new BusinessException(ErrorCode.INVALID_REQUEST)))
                         .flatMap(request -> updateProductStockUseCase.execute(ids.getT1(), ids.getT2(), ids.getT3(),
                                 request.stock())))
-                .flatMap(product -> ServerResponse.ok()
-                        .bodyValue(ProductResponse.builder().id(product.id()).name(product.name())
-                                .stock(product.stock()).build()))
+                .flatMap(product -> ServerResponse.ok().bodyValue(toResponse(product)))
                 .transform(this::handleDomainErrors);
+    }
+
+    public Mono<ServerResponse> getTopStockProducts(ServerRequest serverRequest) {
+        return parseId(serverRequest.pathVariable(ApiPaths.FRANCHISE_ID))
+                .flatMap(getTopStockReportUseCase::execute)
+                .flatMap(report -> Flux.fromIterable(report.branches())
+                        .map(Handler::toResponse)
+                        .collectList()
+                        .map(branches -> new TopStockReportResponse(report.franchiseId(), branches)))
+                .flatMap(response -> ServerResponse.ok().bodyValue(response))
+                .transform(this::handleDomainErrors);
+    }
+
+    private static BranchTopStockResponse toResponse(BranchTopStock branch) {
+        return new BranchTopStockResponse(branch.branchId(), branch.branchName(),
+                Optional.ofNullable(branch.topProduct()).map(Handler::toResponse).orElse(null));
+    }
+
+    private static ProductResponse toResponse(Product product) {
+        return new ProductResponse(product.id(), product.name(), product.stock());
     }
 
     private static Mono<UUID> parseId(String value) {

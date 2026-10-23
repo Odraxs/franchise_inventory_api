@@ -2,14 +2,17 @@ package co.com.bancolombia.r2dbc.product;
 
 import co.com.bancolombia.model.exception.BusinessException;
 import co.com.bancolombia.model.exception.BusinessException.ErrorCode;
+import co.com.bancolombia.model.product.BranchTopStock;
 import co.com.bancolombia.model.product.Product;
 import co.com.bancolombia.model.product.gateways.ProductGateway;
 import co.com.bancolombia.r2dbc.resilience.DatabaseResilience;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -39,6 +42,11 @@ public class ProductRepositoryAdapter implements ProductGateway {
         return resilience.idempotent(repository.updateStock(id, branchId, stock)).map(ProductRepositoryAdapter::toEntity);
     }
 
+    @Override
+    public Flux<BranchTopStock> findTopStockByFranchiseId(UUID franchiseId) {
+        return resilience.idempotent(repository.findTopStockByFranchiseId(franchiseId)).map(ProductRepositoryAdapter::toEntity);
+    }
+
     private static ProductData toData(Product product) {
         return ProductData.builder().id(product.id()).branchId(product.branchId()).name(product.name())
                 .stock(product.stock()).build();
@@ -47,5 +55,14 @@ public class ProductRepositoryAdapter implements ProductGateway {
     private static Product toEntity(ProductData data) {
         return Product.builder().id(data.id()).branchId(data.branchId()).name(data.name())
                 .stock(data.stock()).build();
+    }
+
+    private static BranchTopStock toEntity(TopStockRow row) {
+        return BranchTopStock.builder().branchId(row.branchId()).branchName(row.branchName())
+                .topProduct(Optional.ofNullable(row.productId())
+                        .map(id -> Product.builder().id(id).branchId(row.branchId()).name(row.productName())
+                                .stock(row.productStock()).build())
+                        .orElse(null))
+                .build();
     }
 }

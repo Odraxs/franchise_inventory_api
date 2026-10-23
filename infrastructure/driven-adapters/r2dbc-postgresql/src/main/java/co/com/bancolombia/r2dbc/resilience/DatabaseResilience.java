@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.TransientDataAccessException;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.concurrent.TimeoutException;
@@ -36,6 +37,14 @@ public class DatabaseResilience {
     /** For a read or the soft delete: safe to repeat, so a Timeout is retried too. */
     public <T> Mono<T> idempotent(Mono<T> call) {
         return protect(call, DATABASE_IDEMPOTENT);
+    }
+
+    /**
+     * For a multi-row read: the Timeout covers the whole stream and a retry re-reads it from the start. Each attempt
+     * is buffered and its rows are emitted only once it completes, so a failed attempt never leaks partial rows.
+     */
+    public <T> Flux<T> idempotent(Flux<T> call) {
+        return idempotent(call.collectList()).flatMapIterable(rows -> rows);
     }
 
     /** For an INSERT: it may be committed when it times out, so only connection-level errors are retried. */

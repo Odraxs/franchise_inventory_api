@@ -3,6 +3,7 @@ package co.com.bancolombia.r2dbc.product;
 import co.com.bancolombia.model.exception.BusinessException;
 import co.com.bancolombia.model.exception.BusinessException.ErrorCode;
 import co.com.bancolombia.model.exception.TechnicalException;
+import co.com.bancolombia.model.product.BranchTopStock;
 import co.com.bancolombia.model.product.Product;
 import co.com.bancolombia.r2dbc.resilience.DatabaseResilienceFixture;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,6 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import reactor.test.publisher.PublisherProbe;
@@ -162,12 +164,51 @@ class ProductRepositoryAdapterTest {
     }
 
     @Test
+    void findTopStockMapsEachBranchWithItsTopProduct() {
+        UUID franchiseId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        when(repository.findTopStockByFranchiseId(franchiseId))
+                .thenReturn(Flux.just(new TopStockRow(BRANCH_ID, "Centro", productId, "Cola", 0)));
+
+        StepVerifier.create(adapter.findTopStockByFranchiseId(franchiseId))
+                .expectNext(BranchTopStock.builder().branchId(BRANCH_ID).branchName("Centro")
+                        .topProduct(Product.builder().id(productId).branchId(BRANCH_ID).name("Cola").stock(0).build())
+                        .build())
+                .verifyComplete();
+    }
+
+    @Test
     void updateStockEmitsNothingWhenNoActiveProductMatches() {
         UUID id = UUID.randomUUID();
         when(repository.updateStock(id, BRANCH_ID, 3)).thenReturn(Mono.empty());
 
         StepVerifier.create(adapter.updateStock(id, BRANCH_ID, 3))
                 .verifyComplete();
+    }
+
+    @Test
+    void findTopStockMapsABranchWithoutActiveProductsToANullTopProduct() {
+        UUID franchiseId = UUID.randomUUID();
+        when(repository.findTopStockByFranchiseId(franchiseId))
+                .thenReturn(Flux.just(new TopStockRow(BRANCH_ID, "Centro", null, null, null)));
+
+        StepVerifier.create(adapter.findTopStockByFranchiseId(franchiseId))
+                .expectNext(BranchTopStock.builder().branchId(BRANCH_ID).branchName("Centro").build())
+                .verifyComplete();
+    }
+
+    @Test
+    void stalledTopStockReadFailsWithDatabaseUnavailable() {
+        UUID franchiseId = UUID.randomUUID();
+        when(repository.findTopStockByFranchiseId(franchiseId)).thenReturn(Flux.never());
+
+        StepVerifier.withVirtualTime(() -> adapter.findTopStockByFranchiseId(franchiseId))
+                .expectSubscription()
+                .thenAwait(DatabaseResilienceFixture.TIMEOUT.multipliedBy(DatabaseResilienceFixture.MAX_ATTEMPTS)
+                        .plus(ALL_BACKOFFS))
+                .expectErrorMatches(error -> error instanceof TechnicalException exception
+                        && exception.getErrorCode() == TechnicalException.ErrorCode.DATABASE_UNAVAILABLE)
+                .verify();
     }
 
     private static Product product() {

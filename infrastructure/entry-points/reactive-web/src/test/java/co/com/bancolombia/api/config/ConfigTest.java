@@ -8,6 +8,7 @@ import co.com.bancolombia.usecase.addproduct.AddProductUseCase;
 import co.com.bancolombia.usecase.createfranchise.CreateFranchiseUseCase;
 import co.com.bancolombia.usecase.deleteproduct.DeleteProductUseCase;
 import co.com.bancolombia.usecase.updateproductstock.UpdateProductStockUseCase;
+import co.com.bancolombia.usecase.gettopstockreport.GetTopStockReportUseCase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webflux.test.autoconfigure.WebFluxTest;
@@ -46,6 +47,9 @@ class ConfigTest {
 
     @MockitoBean
     private UpdateProductStockUseCase updateProductStockUseCase;
+
+    @MockitoBean
+    private GetTopStockReportUseCase getTopStockReportUseCase;
 
     @Test
     void corsConfigurationShouldAllowOrigins() {
