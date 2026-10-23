@@ -1,0 +1,1100 @@
+{
+  "info": {
+    "_postman_id": "9f1c2a4e-7b3d-4c58-9e60-1a2b3c4d5e6f",
+    "name": "Franchise Inventory API",
+    "description": "Requests for the Franchise Inventory API, mirroring the smoke test walkthrough in the README.\n\n**Format:** Postman Collection v2.1, importable by Postman, Insomnia and Bruno.\n\n**Order:** run the folders top to bottom. `1. Smoke test walkthrough` creates the franchise, two branches, two products, raises a stock and reads the top-stock report. `2. Error contract` reuses the ids created in folder 1.\n\n**Authentication:** every business route needs HTTP Basic with the local dev API Credential, set at collection level from the `apiUsername` and `apiPassword` variables. The collection defaults are the local dev pair: never use them outside local development. The health and 401 requests override this (no auth).\n\n**Variables:** `baseUrl` defaults to http://localhost:8080. Ids are URL path variables (`:franchiseId`, `:downtownBranchId`, `:uptownBranchId`, `:cheeseburgerId`, `:friesId`), each backed by a collection variable of the same name. The test scripts in Postman fill those variables from the create responses; in Insomnia and Bruno, copy the returned ids into the variables after each create request. `suffix` is a collection variable used in request bodies; set it to a new value (for example `-2`) before rerunning against a database that already has `Burger Town`, because franchise names are unique case-insensitively.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "basic",
+    "basic": [
+      {
+        "key": "username",
+        "value": "{{apiUsername}}",
+        "type": "string"
+      },
+      {
+        "key": "password",
+        "value": "{{apiPassword}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "apiUsername",
+      "value": "inventory-client",
+      "type": "string"
+    },
+    {
+      "key": "apiPassword",
+      "value": "local-dev-only-api-credential-do-not-use-in-aws",
+      "type": "string"
+    },
+    {
+      "key": "suffix",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "franchiseId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "downtownBranchId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "uptownBranchId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "cheeseburgerId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "friesId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Smoke test walkthrough",
+      "description": "The README walkthrough, in order. Each create request saves its new id in a collection variable for the next step.\n\nRun this folder against an empty database, or set `suffix` to a new value first, because the franchise name is unique case-insensitively.",
+      "item": [
+        {
+          "name": "1.1 Create franchise",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "",
+                  "const body = pm.response.json();",
+                  "",
+                  "pm.test('returns the new franchise id', () => {",
+                  "  pm.expect(body.id).to.be.a('string');",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set('franchiseId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Burger Town{{suffix}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/franchises",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "franchises"
+              ]
+            },
+            "description": "Creates the franchise `Burger Town` (201) and stores its id in `franchiseId`."
+          },
+          "response": []
+        },
+        {
+          "name": "1.2 Add branch Downtown",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('downtownBranchId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Downtown\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/franchises/:franchiseId/branches",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "franchises",
+                ":franchiseId",
+                "branches"
+              ],
+              "variable": [
+                {
+                  "key": "franchiseId",
+                  "value": "{{franchiseId}}"
+                }
+              ]
+            },
+            "description": "Adds the branch `Downtown` to the franchise (201) and stores its id in `downtownBranchId`."
+          },
+          "response": []
+        },
+        {
+          "name": "1.3 Add branch Uptown",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('uptownBranchId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Uptown\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/franchises/:franchiseId/branches",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "franchises",
+                ":franchiseId",
+                "branches"
+              ],
+              "variable": [
+                {
+                  "key": "franchiseId",
+                  "value": "{{franchiseId}}"
+                }
+              ]
+            },
+            "description": "Adds the branch `Uptown` to the franchise (201) and stores its id in `uptownBranchId`."
+          },
+          "response": []
+        },
+        {
+          "name": "1.4 Add Cheeseburger to Downtown",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "",
+                  "const body = pm.response.json();",
+                  "",
+                  "pm.test('starts with stock 10', () => {",
+                  "  pm.expect(body.stock).to.eql(10);",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set('cheeseburgerId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Cheeseburger\",\n  \"stock\": 10\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/franchises/:franchiseId/branches/:downtownBranchId/products",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "franchises",
+                ":franchiseId",
+                "branches",
+                ":downtownBranchId",
+                "products"
+              ],
+              "variable": [
+                {
+                  "key": "franchiseId",
+                  "value": "{{franchiseId}}"
+                },
+                {
+                  "key": "downtownBranchId",
+                  "value": "{{downtownBranchId}}"
+                }
+              ]
+            },
+            "description": "Adds `Cheeseburger` with stock 10 to Downtown (201) and stores its id in `cheeseburgerId`."
+          },
+          "response": []
+        },
+        {
+          "name": "1.5 Add Fries to Downtown",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "",
+                  "const body = pm.response.json();",
+                  "",
+                  "pm.test('starts with stock 25', () => {",
+                  "  pm.expect(body.stock).to.eql(25);",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set('friesId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Fries\",\n  \"stock\": 25\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/franchises/:franchiseId/branches/:downtownBranchId/products",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "franchises",
+                ":franchiseId",
+                "branches",
+                ":downtownBranchId",
+                "products"
+              ],
+              "variable": [
+                {
+                  "key": "franchiseId",
+                  "value": "{{franchiseId}}"
+                },
+                {
+                  "key": "downtownBranchId",
+                  "value": "{{downtownBranchId}}"
+                }
+              ]
+            },
+            "description": "Adds `Fries` with stock 25 to Downtown (201) and stores its id in `friesId`."
+          },
+          "response": []
+        },
+        {
+          "name": "1.6 Raise Cheeseburger stock to 40",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const body = pm.response.json();",
+                  "",
+                  "pm.test('returns stock 40', () => {",
+                  "  pm.expect(body.stock).to.eql(40);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stock\": 40\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/franchises/:franchiseId/branches/:downtownBranchId/products/:cheeseburgerId/stock",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "franchises",
+                ":franchiseId",
+                "branches",
+                ":downtownBranchId",
+                "products",
+                ":cheeseburgerId",
+                "stock"
+              ],
+              "variable": [
+                {
+                  "key": "franchiseId",
+                  "value": "{{franchiseId}}"
+                },
+                {
+                  "key": "downtownBranchId",
+                  "value": "{{downtownBranchId}}"
+                },
+                {
+                  "key": "cheeseburgerId",
+                  "value": "{{cheeseburgerId}}"
+                }
+              ]
+            },
+            "description": "Replaces the Cheeseburger stock with 40 (200)."
+          },
+          "response": []
+        },
+        {
+          "name": "1.7 Top-stock report",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const body = pm.response.json();",
+                  "const branches = body.branches || [];",
+                  "",
+                  "pm.test('one entry per branch', () => {",
+                  "  pm.expect(branches).to.have.lengthOf(2);",
+                  "});",
+                  "",
+                  "const downtown = branches.find((branch) => branch.branchName === 'Downtown');",
+                  "const uptown = branches.find((branch) => branch.branchName === 'Uptown');",
+                  "",
+                  "pm.test('Cheeseburger tops Downtown with stock 40', () => {",
+                  "  pm.expect(downtown.topProduct.name).to.eql('Cheeseburger');",
+                  "  pm.expect(downtown.topProduct.stock).to.eql(40);",
+                  "});",
+                  "",
+                  "pm.test('Uptown has no top product', () => {",
+                  "  pm.expect(uptown.topProduct).to.eql(null);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/franchises/:franchiseId/top-stock-products",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "franchises",
+                ":franchiseId",
+                "top-stock-products"
+              ],
+              "variable": [
+                {
+                  "key": "franchiseId",
+                  "value": "{{franchiseId}}"
+                }
+              ]
+            },
+            "description": "Reports the top product of every branch (200). Cheeseburger (40) tops Downtown; Uptown has no products, so `topProduct` is null."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Error contract",
+      "description": "The error cases of the README. Every error answers with `{\"code\", \"message\"}`. Run this folder after `1. Smoke test walkthrough`, because some requests reuse the ids created there.",
+      "item": [
+        {
+          "name": "2.1 Duplicate franchise name (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "",
+                  "const body = pm.response.json();",
+                  "",
+                  "pm.test('DUPLICATE_FRANCHISE_NAME', () => {",
+                  "  pm.expect(body.code).to.eql('DUPLICATE_FRANCHISE_NAME');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"burger town{{suffix}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/franchises",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "franchises"
+              ]
+            },
+            "description": "Repeats `Burger Town` in another case: names are unique case-insensitively (409 `DUPLICATE_FRANCHISE_NAME`). Needs the franchise from step 1.1."
+          },
+          "response": []
+        },
+        {
+          "name": "2.2 Invalid stock (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "",
+                  "const body = pm.response.json();",
+                  "",
+                  "pm.test('INVALID_STOCK', () => {",
+                  "  pm.expect(body.code).to.eql('INVALID_STOCK');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stock\": -1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/franchises/:franchiseId/branches/:downtownBranchId/products/:cheeseburgerId/stock",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "franchises",
+                ":franchiseId",
+                "branches",
+                ":downtownBranchId",
+                "products",
+                ":cheeseburgerId",
+                "stock"
+              ],
+              "variable": [
+                {
+                  "key": "franchiseId",
+                  "value": "{{franchiseId}}"
+                },
+                {
+                  "key": "downtownBranchId",
+                  "value": "{{downtownBranchId}}"
+                },
+                {
+                  "key": "cheeseburgerId",
+                  "value": "{{cheeseburgerId}}"
+                }
+              ]
+            },
+            "description": "Sends a negative stock (400 `INVALID_STOCK`). Stock must be an integer from 0 to 2147483647."
+          },
+          "response": []
+        },
+        {
+          "name": "2.3 Rename product sending stock (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "",
+                  "const body = pm.response.json();",
+                  "",
+                  "pm.test('INVALID_PRODUCT_UPDATE', () => {",
+                  "  pm.expect(body.code).to.eql('INVALID_PRODUCT_UPDATE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Double Cheeseburger\",\n  \"stock\": 50\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/franchises/:franchiseId/branches/:downtownBranchId/products/:cheeseburgerId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "franchises",
+                ":franchiseId",
+                "branches",
+                ":downtownBranchId",
+                "products",
+                ":cheeseburgerId"
+              ],
+              "variable": [
+                {
+                  "key": "franchiseId",
+                  "value": "{{franchiseId}}"
+                },
+                {
+                  "key": "downtownBranchId",
+                  "value": "{{downtownBranchId}}"
+                },
+                {
+                  "key": "cheeseburgerId",
+                  "value": "{{cheeseburgerId}}"
+                }
+              ]
+            },
+            "description": "The rename route accepts only `name`; sending `stock` answers 400 `INVALID_PRODUCT_UPDATE`. Use `PATCH .../stock` to change the stock."
+          },
+          "response": []
+        },
+        {
+          "name": "2.4 Unknown franchise (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+                  "",
+                  "const body = pm.response.json();",
+                  "",
+                  "pm.test('FRANCHISE_NOT_FOUND', () => {",
+                  "  pm.expect(body.code).to.eql('FRANCHISE_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/franchises/00000000-0000-0000-0000-000000000000/top-stock-products",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "franchises",
+                "00000000-0000-0000-0000-000000000000",
+                "top-stock-products"
+              ]
+            },
+            "description": "Reads the report of a franchise that does not exist (404 `FRANCHISE_NOT_FOUND`)."
+          },
+          "response": []
+        },
+        {
+          "name": "2.5 Malformed UUID (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "",
+                  "const body = pm.response.json();",
+                  "",
+                  "pm.test('INVALID_REQUEST', () => {",
+                  "  pm.expect(body.code).to.eql('INVALID_REQUEST');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/franchises/not-a-uuid/top-stock-products",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "franchises",
+                "not-a-uuid",
+                "top-stock-products"
+              ]
+            },
+            "description": "Sends a malformed UUID (400 `INVALID_REQUEST`)."
+          },
+          "response": []
+        },
+        {
+          "name": "2.6 Missing credential (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+                  "",
+                  "pm.test('sets WWW-Authenticate', () => {",
+                  "  pm.expect(pm.response.headers.get('WWW-Authenticate')).to.include('Basic');",
+                  "});",
+                  "",
+                  "const body = pm.response.json();",
+                  "",
+                  "pm.test('UNAUTHORIZED', () => {",
+                  "  pm.expect(body.code).to.eql('UNAUTHORIZED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Pizza Palace\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/franchises",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "franchises"
+              ]
+            },
+            "description": "Sends no `Authorization` header (401 `UNAUTHORIZED`). This request overrides the collection auth with No Auth."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Remaining endpoints",
+      "description": "The routes the smoke test does not exercise: renames and the soft delete. Run after `1. Smoke test walkthrough`.",
+      "item": [
+        {
+          "name": "3.1 Rename franchise",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const body = pm.response.json();",
+                  "",
+                  "pm.test('returns the new name', () => {",
+                  "  pm.expect(body.name).to.eql('Burger Town Express' + pm.variables.get('suffix'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Burger Town Express{{suffix}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/franchises/:franchiseId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "franchises",
+                ":franchiseId"
+              ],
+              "variable": [
+                {
+                  "key": "franchiseId",
+                  "value": "{{franchiseId}}"
+                }
+              ]
+            },
+            "description": "Renames the franchise (200)."
+          },
+          "response": []
+        },
+        {
+          "name": "3.2 Rename branch",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const body = pm.response.json();",
+                  "",
+                  "pm.test('returns the new name', () => {",
+                  "  pm.expect(body.name).to.eql('Downtown Plaza');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Downtown Plaza\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/franchises/:franchiseId/branches/:downtownBranchId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "franchises",
+                ":franchiseId",
+                "branches",
+                ":downtownBranchId"
+              ],
+              "variable": [
+                {
+                  "key": "franchiseId",
+                  "value": "{{franchiseId}}"
+                },
+                {
+                  "key": "downtownBranchId",
+                  "value": "{{downtownBranchId}}"
+                }
+              ]
+            },
+            "description": "Renames the Downtown branch (200)."
+          },
+          "response": []
+        },
+        {
+          "name": "3.3 Rename product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const body = pm.response.json();",
+                  "",
+                  "pm.test('renames without changing the stock', () => {",
+                  "  pm.expect(body.name).to.eql('Double Cheeseburger');",
+                  "  pm.expect(body.stock).to.eql(40);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Double Cheeseburger\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/franchises/:franchiseId/branches/:downtownBranchId/products/:cheeseburgerId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "franchises",
+                ":franchiseId",
+                "branches",
+                ":downtownBranchId",
+                "products",
+                ":cheeseburgerId"
+              ],
+              "variable": [
+                {
+                  "key": "franchiseId",
+                  "value": "{{franchiseId}}"
+                },
+                {
+                  "key": "downtownBranchId",
+                  "value": "{{downtownBranchId}}"
+                },
+                {
+                  "key": "cheeseburgerId",
+                  "value": "{{cheeseburgerId}}"
+                }
+              ]
+            },
+            "description": "Renames the Cheeseburger (200); the stock stays at 40."
+          },
+          "response": []
+        },
+        {
+          "name": "3.4 Delete product (soft delete)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/franchises/:franchiseId/branches/:downtownBranchId/products/:friesId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "franchises",
+                ":franchiseId",
+                "branches",
+                ":downtownBranchId",
+                "products",
+                ":friesId"
+              ],
+              "variable": [
+                {
+                  "key": "franchiseId",
+                  "value": "{{franchiseId}}"
+                },
+                {
+                  "key": "downtownBranchId",
+                  "value": "{{downtownBranchId}}"
+                },
+                {
+                  "key": "friesId",
+                  "value": "{{friesId}}"
+                }
+              ]
+            },
+            "description": "Soft-deletes Fries (204). It stops appearing in reports and its name can be reused in the branch."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Service checks",
+      "description": "Public endpoints that need no credential.",
+      "item": [
+        {
+          "name": "4.1 Health (public)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const body = pm.response.json();",
+                  "",
+                  "pm.test('status UP', () => {",
+                  "  pm.expect(body.status).to.eql('UP');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/actuator/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            },
+            "description": "Health check (200). Public: it needs no credential."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
