@@ -246,7 +246,7 @@ The **Unit Tests** need only the JDK; they do not use the database.
 ```
 
 - `vs` (`validateStructure`) checks the layer dependency rule of the clean architecture.
-- `test` runs the **Unit Tests** of every module, including `ArchitectureTest` in `app-service`, with their **Gateways** mocked. Test reports land in `<module>/build/reports/tests/test/index.html`.
+- `test` runs the **Unit Tests** of every module, including `ArchitectureTest` in `app-service`. Test reports land in `<module>/build/reports/tests/test/index.html`.
 
 The **Integration Tests** start the whole application on a random port and call it over HTTP with the **API Credential**, against a real PostgreSQL 17 in a Testcontainers container. They need Docker:
 
