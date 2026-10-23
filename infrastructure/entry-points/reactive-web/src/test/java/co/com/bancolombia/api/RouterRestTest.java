@@ -572,21 +572,45 @@ class RouterRestTest {
     }
 
     @Test
-    void renameProductIgnoresUnknownFieldsIncludingStock() {
+    void renameProductIgnoresUnknownFields() {
         UUID id = UUID.randomUUID();
         when(renameProductUseCase.execute(any(UUID.class), any(UUID.class), eq(id), eq("Cola")))
                 .thenReturn(Mono.just(Product.builder().id(id).branchId(UUID.randomUUID()).name("Cola").stock(7).build()));
 
         patchProduct(UUID.randomUUID().toString(), UUID.randomUUID().toString(), id.toString(),
-                "{\"name\": \"Cola\", \"stock\": 99, \"extra\": true}")
+                "{\"name\": \"Cola\", \"extra\": true}")
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.stock").isEqualTo(7);
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {"5", "0", "2147483648", "null", "\"5\"", "true", "{}", "[]"})
+    void renameProductReturns400InvalidProductUpdateForAnyStockValueWithoutCallingTheUseCase(String stock) {
+        patchProduct(UUID.randomUUID().toString(), UUID.randomUUID().toString(), UUID.randomUUID().toString(),
+                "{\"name\": \"Cola\", \"stock\": " + stock + "}")
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_PRODUCT_UPDATE")
+                .jsonPath("$.message")
+                .isEqualTo("Only the name changes here; update the stock through the stock endpoint");
+        verifyNoInteractions(renameProductUseCase);
+    }
+
+    @Test
+    void renameProductRejectsStockBeforeTheName() {
+        patchProduct(UUID.randomUUID().toString(), UUID.randomUUID().toString(), UUID.randomUUID().toString(),
+                "{\"name\": \" \", \"stock\": 5}")
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_PRODUCT_UPDATE");
+        verifyNoInteractions(renameProductUseCase);
+    }
+
+    @ParameterizedTest
     @CsvSource({
             "INVALID_PRODUCT_NAME, 400",
+            "INVALID_PRODUCT_UPDATE, 400",
             "FRANCHISE_NOT_FOUND, 404",
             "BRANCH_NOT_FOUND, 404",
             "PRODUCT_NOT_FOUND, 404",

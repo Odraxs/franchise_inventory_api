@@ -126,6 +126,8 @@ public class Handler {
                         parseId(serverRequest.pathVariable(ApiPaths.BRANCH_ID)),
                         parseId(serverRequest.pathVariable(ApiPaths.ID)))
                 .flatMap(ids -> readBody(serverRequest, RenameProductRequest.class)
+                        .filter(request -> !request.hasStock())
+                        .switchIfEmpty(Mono.error(() -> new BusinessException(ErrorCode.INVALID_PRODUCT_UPDATE)))
                         .flatMap(request -> renameProductUseCase.execute(ids.getT1(), ids.getT2(), ids.getT3(),
                                 request.name())))
                 .flatMap(product -> ServerResponse.ok().bodyValue(toResponse(product)))
