@@ -149,3 +149,16 @@ curl -s -X PATCH $API/franchises/$FRANCHISE_ID/branches/$DOWNTOWN_ID/products/$B
   -H 'Content-Type: application/json' -d '{"stock":-1}'
 # {"code":"INVALID_STOCK","message":"The stock must be an integer from 0 to 2147483647"}
 ```
+
+### Error contract
+
+Every error answers with a JSON body `{"code": "...", "message": "..."}`. The code name sets the HTTP status:
+
+| Code | Status | Example |
+|---|---|---|
+| `INVALID_*` | 400 | `INVALID_REQUEST` (malformed body, wrong field type, malformed UUID), `INVALID_FRANCHISE_NAME`, `INVALID_STOCK` |
+| `*_NOT_FOUND` | 404 | `FRANCHISE_NOT_FOUND`, `BRANCH_NOT_FOUND`, `PRODUCT_NOT_FOUND` |
+| `DUPLICATE_*` | 409 | `DUPLICATE_BRANCH_NAME` (names are unique case-insensitively) |
+| `DATABASE_UNAVAILABLE` | 503 | The database is unreachable, slow, or its circuit breaker is open |
+
+Names are trimmed and must have 1 to 100 characters. Stock is an integer from 0 to 2147483647. The Swagger UI lists the exact codes of each endpoint.
