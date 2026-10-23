@@ -11,16 +11,22 @@ info:
     | Code | Status |
     |---|---|
     | `INVALID_*` (malformed body, wrong field type, malformed UUID, invalid value) | 400 |
+    | `UNAUTHORIZED` (missing, wrong or malformed API Credential) | 401 |
     | `*_NOT_FOUND` | 404 |
     | `DUPLICATE_*` (names are unique case-insensitively) | 409 |
     | `DATABASE_UNAVAILABLE` | 503 |
+
+    **Authentication.** Every operation needs the API Credential of the trusted client, sent with HTTP Basic
+    (`Authorization: Basic base64(username:password)`). Use **Authorize** before **Try it out**.
+    These docs are public; health is public too and is not listed here.
 
     Names are stripped of surrounding whitespace and must have 1 to 100 characters. Stock is an integer from 0 to 2147483647.
 servers:
   - url: http://localhost:8080
     description: Local
-# The API has no authentication
-security: []
+# Every operation needs the API Credential; Swagger UI's "Authorize" sends it on "Try it out"
+security:
+  - basicAuth: []
 tags:
   - name: Franchises
     description: Create and rename franchises
@@ -75,6 +81,8 @@ paths:
                   $ref: '#/components/examples/InvalidRequest'
                 INVALID_FRANCHISE_NAME:
                   $ref: '#/components/examples/InvalidFranchiseName'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '409':
           $ref: '#/components/responses/DuplicateFranchiseName'
         '503':
@@ -119,6 +127,8 @@ paths:
                   $ref: '#/components/examples/InvalidRequest'
                 INVALID_FRANCHISE_NAME:
                   $ref: '#/components/examples/InvalidFranchiseName'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/FranchiseNotFound'
         '409':
@@ -171,6 +181,8 @@ paths:
                   $ref: '#/components/examples/InvalidRequest'
                 INVALID_BRANCH_NAME:
                   $ref: '#/components/examples/InvalidBranchName'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/FranchiseNotFound'
         '409':
@@ -218,6 +230,8 @@ paths:
                   $ref: '#/components/examples/InvalidRequest'
                 INVALID_BRANCH_NAME:
                   $ref: '#/components/examples/InvalidBranchName'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/FranchiseOrBranchNotFound'
         '409':
@@ -275,6 +289,8 @@ paths:
                   $ref: '#/components/examples/InvalidProductName'
                 INVALID_STOCK:
                   $ref: '#/components/examples/InvalidStock'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/FranchiseOrBranchNotFound'
         '409':
@@ -327,6 +343,8 @@ paths:
                   $ref: '#/components/examples/InvalidProductName'
                 INVALID_PRODUCT_UPDATE:
                   $ref: '#/components/examples/InvalidProductUpdate'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/FranchiseBranchOrProductNotFound'
         '409':
@@ -347,6 +365,8 @@ paths:
           description: Product deleted
         '400':
           $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/FranchiseBranchOrProductNotFound'
         '503':
@@ -395,6 +415,8 @@ paths:
                   $ref: '#/components/examples/InvalidRequest'
                 INVALID_STOCK:
                   $ref: '#/components/examples/InvalidStock'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/FranchiseBranchOrProductNotFound'
         '503':
@@ -431,12 +453,20 @@ paths:
                     topProduct: null
         '400':
           $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/FranchiseNotFound'
         '503':
           $ref: '#/components/responses/DatabaseUnavailable'
 
 components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: The API Credential (username and password) of the trusted client.
+
   parameters:
     FranchiseId:
       name: franchiseId
@@ -652,6 +682,22 @@ components:
         message: The product does not exist in the branch
 
   responses:
+    Unauthorized:
+      description: Missing, wrong or malformed API Credential
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+          example: Basic realm="franchise-inventory"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            UNAUTHORIZED:
+              value:
+                code: UNAUTHORIZED
+                message: A valid API credential is required, sent with HTTP Basic
     InvalidRequest:
       description: Malformed id
       content:
