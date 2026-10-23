@@ -119,6 +119,26 @@ tasks.register('jacocoMergedReport', JacocoReport) {
     }
 }
 
+// Fails the build when merged line or branch coverage drops below 80%
+tasks.register('jacocoMergedCoverageVerification', JacocoCoverageVerification) {
+    dependsOn jacocoMergedReport
+    sourceDirectories.setFrom files(subprojects.sourceSets.main.allSource.srcDirs)
+    classDirectories.setFrom files(subprojects.sourceSets.main.output)
+    executionData.setFrom project.fileTree(dir: '.', include: '**/build/jacoco/test.exec')
+    violationRules {
+        rule {
+            limit {
+                counter = 'LINE'
+                minimum = 0.80
+            }
+            limit {
+                counter = 'BRANCH'
+                minimum = 0.80
+            }
+        }
+    }
+}
+
 tasks.withType(JavaCompile).configureEach {
     options.compilerArgs = [
             '-Amapstruct.suppressGeneratorTimestamp=true'
