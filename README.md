@@ -141,33 +141,34 @@ Every route below needs the **API Credential** (see [Authentication](#3-authenti
 
 ### Smoke test walkthrough
 
-Run these in one terminal, in order; each step saves the new id in a shell variable for the next one. Names are unique (case-insensitive), so on a database that already has these names, change them or start from an empty database (`docker compose down -v`).
+Run these in one terminal, in order; each step saves the new id in a shell variable for the next one, and every call sends the local dev **API Credential**. Names are unique (case-insensitive), so on a database that already has these names, change them or start from an empty database (`docker compose down -v`).
 
 ```bash
 API=http://localhost:8080
+CREDENTIAL=inventory-client:local-dev-only-api-credential-do-not-use-in-aws
 
 # Create a franchise (201)
-FRANCHISE_ID=$(curl -s -X POST $API/franchises \
+FRANCHISE_ID=$(curl -s -u $CREDENTIAL -X POST $API/franchises \
   -H 'Content-Type: application/json' -d '{"name":"Burger Town"}' | jq -r .id)
 
 # Add two branches to it (201)
-DOWNTOWN_ID=$(curl -s -X POST $API/franchises/$FRANCHISE_ID/branches \
+DOWNTOWN_ID=$(curl -s -u $CREDENTIAL -X POST $API/franchises/$FRANCHISE_ID/branches \
   -H 'Content-Type: application/json' -d '{"name":"Downtown"}' | jq -r .id)
-UPTOWN_ID=$(curl -s -X POST $API/franchises/$FRANCHISE_ID/branches \
+UPTOWN_ID=$(curl -s -u $CREDENTIAL -X POST $API/franchises/$FRANCHISE_ID/branches \
   -H 'Content-Type: application/json' -d '{"name":"Uptown"}' | jq -r .id)
 
 # Add two products to Downtown (201)
-BURGER_ID=$(curl -s -X POST $API/franchises/$FRANCHISE_ID/branches/$DOWNTOWN_ID/products \
+BURGER_ID=$(curl -s -u $CREDENTIAL -X POST $API/franchises/$FRANCHISE_ID/branches/$DOWNTOWN_ID/products \
   -H 'Content-Type: application/json' -d '{"name":"Cheeseburger","stock":10}' | jq -r .id)
-curl -s -X POST $API/franchises/$FRANCHISE_ID/branches/$DOWNTOWN_ID/products \
+curl -s -u $CREDENTIAL -X POST $API/franchises/$FRANCHISE_ID/branches/$DOWNTOWN_ID/products \
   -H 'Content-Type: application/json' -d '{"name":"Fries","stock":25}' | jq
 
 # Raise the Cheeseburger stock to 40 (200)
-curl -s -X PATCH $API/franchises/$FRANCHISE_ID/branches/$DOWNTOWN_ID/products/$BURGER_ID/stock \
+curl -s -u $CREDENTIAL -X PATCH $API/franchises/$FRANCHISE_ID/branches/$DOWNTOWN_ID/products/$BURGER_ID/stock \
   -H 'Content-Type: application/json' -d '{"stock":40}' | jq
 
 # Top-stock report (200): Cheeseburger tops Downtown, Uptown has no products
-curl -s $API/franchises/$FRANCHISE_ID/top-stock-products | jq
+curl -s -u $CREDENTIAL $API/franchises/$FRANCHISE_ID/top-stock-products | jq
 ```
 
 The report looks like this (with your ids):
@@ -193,10 +194,10 @@ The report looks like this (with your ids):
 To see the error contract, repeat a name in another case (`409`) or send a negative stock (`400`):
 
 ```bash
-curl -s -X POST $API/franchises -H 'Content-Type: application/json' -d '{"name":"burger town"}'
+curl -s -u $CREDENTIAL -X POST $API/franchises -H 'Content-Type: application/json' -d '{"name":"burger town"}'
 # {"code":"DUPLICATE_FRANCHISE_NAME","message":"A franchise with this name already exists"}
 
-curl -s -X PATCH $API/franchises/$FRANCHISE_ID/branches/$DOWNTOWN_ID/products/$BURGER_ID/stock \
+curl -s -u $CREDENTIAL -X PATCH $API/franchises/$FRANCHISE_ID/branches/$DOWNTOWN_ID/products/$BURGER_ID/stock \
   -H 'Content-Type: application/json' -d '{"stock":-1}'
 # {"code":"INVALID_STOCK","message":"The stock must be an integer from 0 to 2147483647"}
 ```
