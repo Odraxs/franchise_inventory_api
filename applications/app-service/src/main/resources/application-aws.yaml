@@ -1,10 +1,13 @@
 # Cloud profile. The container gets only non-secret variables: SPRING_PROFILES_ACTIVE=aws,
-# DB_SECRET_NAME and AWS_REGION (the SDK region chain reads it; nothing here names a region).
+# DB_SECRET_NAME, API_SECRET_NAME and AWS_REGION (the SDK region chain reads it; nothing here names a region).
 spring:
   config:
-    # Reads the DB Secret (JSON with the RDS keys host, port, dbname, username, password) once at startup.
-    # "?prefix=db." prepends "db." to every key, so the secret key "host" becomes "db.host".
-    import: "aws-secretsmanager:${DB_SECRET_NAME}?prefix=db."
+    # Reads both secrets once at startup; ";" separates them, and each one has its own prefix.
+    # - DB Secret (JSON with the RDS keys host, port, dbname, username, password): "?prefix=db."
+    #   prepends "db." to every key, so the secret key "host" becomes "db.host".
+    # - API Secret (JSON with the keys username, password): "?prefix=security.client." binds the
+    #   API Credential straight to security.client.username and security.client.password.
+    import: "aws-secretsmanager:${DB_SECRET_NAME}?prefix=db.;${API_SECRET_NAME}?prefix=security.client."
   cloud:
     aws:
       secretsmanager:
