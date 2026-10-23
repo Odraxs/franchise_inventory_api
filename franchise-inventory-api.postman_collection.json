@@ -827,7 +827,7 @@
                   "const body = pm.response.json();",
                   "",
                   "pm.test('returns the new name', () => {",
-                  "  pm.expect(body.name).to.eql('Burger Town Express' + pm.collectionVariables.get('suffix'));",
+                  "  pm.expect(body.name).to.eql('Burger Town Express' + pm.variables.get('suffix'));",
                   "});"
                 ]
               }
