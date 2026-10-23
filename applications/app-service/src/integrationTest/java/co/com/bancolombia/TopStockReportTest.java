@@ -1,8 +1,6 @@
 package co.com.bancolombia;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.reactive.server.WebTestClient;
 
 import java.util.Map;
 import java.util.UUID;
@@ -19,11 +17,7 @@ class TopStockReportTest extends IntegrationTestBase {
         UUID burgerId = createProduct(franchiseId, downtownId, "Cheeseburger", 10);
         createProduct(franchiseId, downtownId, "Fries", 25);
 
-        webTestClient.patch()
-                .uri(PRODUCT_STOCK, franchiseId, downtownId, burgerId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(Map.of(STOCK, 40))
-                .exchange()
+        changeStock(franchiseId, downtownId, burgerId, 40)
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.id").isEqualTo(burgerId.toString())
@@ -59,12 +53,5 @@ class TopStockReportTest extends IntegrationTestBase {
                 .jsonPath("$.branches[0].topProduct.id").isEqualTo(zucchiniId.toString())
                 .jsonPath("$.branches[0].topProduct.name").isEqualTo("Zucchini")
                 .jsonPath("$.branches[0].topProduct.stock").isEqualTo(15);
-    }
-
-    private WebTestClient.ResponseSpec getTopStockReport(UUID franchiseId) {
-        return webTestClient.get()
-                .uri(TOP_STOCK_PRODUCTS, franchiseId)
-                .accept(MediaType.APPLICATION_JSON)
-                .exchange();
     }
 }

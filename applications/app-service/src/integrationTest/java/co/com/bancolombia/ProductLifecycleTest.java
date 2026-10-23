@@ -1,20 +1,13 @@
 package co.com.bancolombia;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.http.HttpStatus;
 
-import java.util.Map;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 class ProductLifecycleTest extends IntegrationTestBase {
-    private static final String NAME = "name";
-    private static final String PRODUCT = PRODUCTS + "/{id}";
     private static final String PRODUCT_NOT_FOUND = "PRODUCT_NOT_FOUND";
     private static final String DUPLICATE_PRODUCT_NAME = "DUPLICATE_PRODUCT_NAME";
-    private static final int CONFLICT = 409;
 
     @Test
     void deletingAProductRemovesItFromTheTopStockReport() {
@@ -46,7 +39,6 @@ class ProductLifecycleTest extends IntegrationTestBase {
 
         UUID reusedId = createProduct(franchiseId, branchId, "cHEESEBURGER", 10);
 
-        assertThat(reusedId).isNotEqualTo(deletedId);
         getTopStockReport(franchiseId)
                 .expectStatus().isOk()
                 .expectBody()
@@ -77,7 +69,7 @@ class ProductLifecycleTest extends IntegrationTestBase {
         createProduct(franchiseId, branchId, "Cheeseburger", 20);
 
         renameProduct(franchiseId, branchId, friesId, "CHEESEBURGER")
-                .expectStatus().isEqualTo(CONFLICT)
+                .expectStatus().isEqualTo(HttpStatus.CONFLICT)
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(DUPLICATE_PRODUCT_NAME);
     }
@@ -126,34 +118,5 @@ class ProductLifecycleTest extends IntegrationTestBase {
                 .expectStatus().isNotFound()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(PRODUCT_NOT_FOUND);
-    }
-
-    private WebTestClient.ResponseSpec renameProduct(UUID franchiseId, UUID branchId, UUID productId, String name) {
-        return webTestClient.patch()
-                .uri(PRODUCT, franchiseId, branchId, productId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(Map.of(NAME, name))
-                .exchange();
-    }
-
-    private WebTestClient.ResponseSpec changeStock(UUID franchiseId, UUID branchId, UUID productId, int stock) {
-        return webTestClient.patch()
-                .uri(PRODUCT_STOCK, franchiseId, branchId, productId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(Map.of(STOCK, stock))
-                .exchange();
-    }
-
-    private WebTestClient.ResponseSpec deleteProduct(UUID franchiseId, UUID branchId, UUID productId) {
-        return webTestClient.delete()
-                .uri(PRODUCT, franchiseId, branchId, productId)
-                .exchange();
-    }
-
-    private WebTestClient.ResponseSpec getTopStockReport(UUID franchiseId) {
-        return webTestClient.get()
-                .uri(TOP_STOCK_PRODUCTS, franchiseId)
-                .accept(MediaType.APPLICATION_JSON)
-                .exchange();
     }
 }

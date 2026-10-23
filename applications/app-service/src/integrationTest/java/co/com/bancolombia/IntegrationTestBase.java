@@ -23,15 +23,16 @@ public abstract class IntegrationTestBase {
     protected static final String FRANCHISES = "/franchises";
     protected static final String BRANCHES = FRANCHISES + "/{franchiseId}/branches";
     protected static final String PRODUCTS = BRANCHES + "/{branchId}/products";
-    protected static final String PRODUCT_STOCK = PRODUCTS + "/{id}/stock";
+    protected static final String PRODUCT = PRODUCTS + "/{id}";
+    protected static final String PRODUCT_STOCK = PRODUCT + "/stock";
     protected static final String TOP_STOCK_PRODUCTS = FRANCHISES + "/{franchiseId}/top-stock-products";
-    protected static final String STOCK = "stock";
 
     private static final String POSTGRES_IMAGE = "postgres:17-alpine";
     private static final String SCHEMA = "public";
     private static final String CLIENT_USERNAME = "integration-test-client";
     private static final String CLIENT_PASSWORD = "integration-test-only-api-credential-0123456789";
     private static final String NAME = "name";
+    private static final String STOCK = "stock";
 
     /**
      * Started once per JVM, before any Spring context reads its address, and never stopped by a test class: a
@@ -71,23 +72,56 @@ public abstract class IntegrationTestBase {
 
     /** Creates a Franchise with a unique name, so no other test can collide with it. */
     protected UUID createFranchise() {
-        return create(FRANCHISES, Map.of(NAME, "Franchise " + UUID.randomUUID()));
+        return idOf(postFranchise("Franchise " + UUID.randomUUID()));
     }
 
     protected UUID createBranch(UUID franchiseId, String name) {
-        return create(BRANCHES, Map.of(NAME, name), franchiseId);
+        return idOf(postBranch(franchiseId, name));
     }
 
     protected UUID createProduct(UUID franchiseId, UUID branchId, String name, int stock) {
-        return create(PRODUCTS, Map.of(NAME, name, STOCK, stock), franchiseId, branchId);
+        return idOf(send(webTestClient.post(), PRODUCTS, Map.of(NAME, name, STOCK, stock), franchiseId, branchId));
     }
 
-    private UUID create(String path, Map<String, Object> body, Object... pathVariables) {
-        return webTestClient.post()
-                .uri(path, pathVariables)
+    protected WebTestClient.ResponseSpec postFranchise(String name) {
+        return send(webTestClient.post(), FRANCHISES, Map.of(NAME, name));
+    }
+
+    protected WebTestClient.ResponseSpec postBranch(UUID franchiseId, String name) {
+        return send(webTestClient.post(), BRANCHES, Map.of(NAME, name), franchiseId);
+    }
+
+    protected WebTestClient.ResponseSpec renameProduct(UUID franchiseId, UUID branchId, UUID productId, String name) {
+        return send(webTestClient.patch(), PRODUCT, Map.of(NAME, name), franchiseId, branchId, productId);
+    }
+
+    protected WebTestClient.ResponseSpec changeStock(UUID franchiseId, UUID branchId, UUID productId, int stock) {
+        return send(webTestClient.patch(), PRODUCT_STOCK, Map.of(STOCK, stock), franchiseId, branchId, productId);
+    }
+
+    protected WebTestClient.ResponseSpec deleteProduct(UUID franchiseId, UUID branchId, UUID productId) {
+        return webTestClient.delete()
+                .uri(PRODUCT, franchiseId, branchId, productId)
+                .exchange();
+    }
+
+    protected WebTestClient.ResponseSpec getTopStockReport(UUID franchiseId) {
+        return webTestClient.get()
+                .uri(TOP_STOCK_PRODUCTS, franchiseId)
+                .accept(MediaType.APPLICATION_JSON)
+                .exchange();
+    }
+
+    private static WebTestClient.ResponseSpec send(WebTestClient.RequestBodyUriSpec method, String path,
+                                                   Map<String, Object> body, Object... pathVariables) {
+        return method.uri(path, pathVariables)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(body)
-                .exchange()
+                .exchange();
+    }
+
+    private static UUID idOf(WebTestClient.ResponseSpec response) {
+        return response
                 .expectStatus().isCreated()
                 .expectBody(CreatedResource.class)
                 .returnResult()
