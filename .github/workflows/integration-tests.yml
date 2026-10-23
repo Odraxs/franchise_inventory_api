@@ -1,0 +1,69 @@
+name: Integration Tests
+
+# Runs only when code changes, so docs-only and Terraform-only PRs skip it.
+# It is not a required status check: a skipped workflow would leave the check pending.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'domain/**'
+      - 'infrastructure/**'
+      - 'applications/**'
+      - 'build.gradle'
+      - 'main.gradle'
+      - 'settings.gradle'
+      - 'gradle.properties'
+      - 'gradle/**'
+      - '.github/workflows/integration-tests.yml'
+  pull_request:
+    paths:
+      - 'domain/**'
+      - 'infrastructure/**'
+      - 'applications/**'
+      - 'build.gradle'
+      - 'main.gradle'
+      - 'settings.gradle'
+      - 'gradle.properties'
+      - 'gradle/**'
+      - '.github/workflows/integration-tests.yml'
+  workflow_dispatch:
+
+# Cancel older runs of the same branch or PR when a new commit arrives
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # Caches Gradle and validates the wrapper jar checksum
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
+
+      # Docker is available on the GitHub-hosted runner; the suite fails rather than skips without it
+      - name: Run integration tests
+        run: ./gradlew :app-service:integrationTest --console=plain
+
+      - name: Upload integration test reports
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: integration-test-reports
+          path: |
+            applications/app-service/build/reports/tests/integrationTest/
+            applications/app-service/build/test-results/integrationTest/
+          retention-days: 1

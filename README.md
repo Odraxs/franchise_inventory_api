@@ -239,14 +239,22 @@ Names are trimmed and must have 1 to 100 characters. Stock is an integer from 0 
 
 ## 5. Tests
 
-The tests need only the JDK; they do not use the database.
+The **Unit Tests** need only the JDK; they do not use the database.
 
 ```bash
 ./gradlew vs test
 ```
 
 - `vs` (`validateStructure`) checks the layer dependency rule of the clean architecture.
-- `test` runs the unit tests of every module, including `ArchitectureTest` in `app-service`. Test reports land in `<module>/build/reports/tests/test/index.html`.
+- `test` runs the **Unit Tests** of every module, including `ArchitectureTest` in `app-service`. Test reports land in `<module>/build/reports/tests/test/index.html`.
+
+The **Integration Tests** start the whole application on a random port and call it over HTTP with the **API Credential**, against a real PostgreSQL 17 in a Testcontainers container. They need Docker:
+
+```bash
+./gradlew :app-service:integrationTest
+```
+
+They cover, by kind: the real PostgreSQL SQL and constraints (the `LEFT JOIN LATERAL` behind the **Top-Stock Product** report, the `UPDATE … RETURNING` behind **Stock** changes and renames, and the partial unique index that lets a **Deleted Product**'s name be reused), the Flyway migration on an empty database, the Spring wiring that connects the **Entry Point**, **Use Cases** and **Driven Adapters**, and the **Domain Exception** → HTTP status mapping. A **Unit Test** mocks its collaborators and checks one class; an **Integration Test** mocks nothing, creates its own **Franchise** through the API and checks only what a **Client** can observe. The suite's report lands in `applications/app-service/build/reports/tests/integrationTest/index.html`.
 
 ## 6. Project structure
 

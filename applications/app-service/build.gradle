@@ -12,6 +12,40 @@ dependencies {
     testImplementation 'tools.jackson.core:jackson-databind'
 }
 
+// Integration Tests: the whole app over HTTP against PostgreSQL in Testcontainers (needs Docker).
+// A suite of its own, so test, pitest, build and the JaCoCo gate never run it or read its execution data.
+testing {
+    suites {
+        integrationTest(JvmTestSuite) {
+            useJUnitJupiter()
+            // The main classes and their dependencies come from the source set wiring below
+            dependencies {
+                implementation 'org.springframework.boot:spring-boot-starter-test'
+                implementation 'org.springframework.boot:spring-boot-starter-webflux-test'
+                implementation 'org.testcontainers:testcontainers-postgresql'
+                implementation "io.projectreactor.tools:blockhound-junit-platform:${blockHoundVersion}"
+            }
+            targets.configureEach {
+                testTask.configure {
+                    shouldRunAfter(test)
+                }
+            }
+        }
+    }
+}
+
+// project() would resolve to the disabled plain jar, so the suite takes the main classes and dependencies directly
+configurations {
+    integrationTestImplementation.extendsFrom implementation
+}
+
+sourceSets {
+    integrationTest {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+
 tasks.register('explodedJar', Copy) {
     with jar
     into layout.buildDirectory.dir("exploded")

@@ -87,4 +87,5 @@ Use the Resilience4j Reactor operators (`transformDeferred(CircuitBreakerOperato
 
 - Assert reactive flows with `StepVerifier` (`reactor-test`).
 - Use JUnit 5 + Mockito; mock gateways in use case tests and use cases in handler tests.
+- An **Integration Test** lives in the `app-service` integration suite (`applications/app-service/src/integrationTest`), goes through HTTP only, creates its own **Franchise**, and mocks nothing.
 - Leave the generated `ArchitectureTest.java` in `app-service` unchanged.
