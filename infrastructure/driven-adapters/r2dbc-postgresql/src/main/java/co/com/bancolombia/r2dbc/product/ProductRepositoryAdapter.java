@@ -37,6 +37,19 @@ public class ProductRepositoryAdapter implements ProductGateway {
         return resilience.idempotent(repository.softDelete(id, branchId)).map(rows -> rows > 0);
     }
 
+    /**
+     * uq_product_branch_name rejects a name another active Product of the branch has (ignoring case); a row never
+     * conflicts with itself. A Timeout leaves the commit unknown, and repeating the UPDATE could overwrite a newer
+     * rename, so only connection-level errors are retried.
+     */
+    @Override
+    public Mono<Product> rename(UUID id, UUID branchId, String name) {
+        return resilience.nonIdempotent(repository.rename(id, branchId, name))
+                .map(ProductRepositoryAdapter::toEntity)
+                .onErrorMap(DuplicateKeyException.class,
+                        error -> new BusinessException(ErrorCode.DUPLICATE_PRODUCT_NAME, error));
+    }
+
     @Override
     public Mono<Product> updateStock(UUID id, UUID branchId, Integer stock) {
         return resilience.idempotent(repository.updateStock(id, branchId, stock)).map(ProductRepositoryAdapter::toEntity);

@@ -17,6 +17,7 @@ import co.com.bancolombia.usecase.updateproductstock.UpdateProductStockUseCase;
 import co.com.bancolombia.usecase.gettopstockreport.GetTopStockReportUseCase;
 import co.com.bancolombia.usecase.renamebranch.RenameBranchUseCase;
 import co.com.bancolombia.usecase.renamefranchise.RenameFranchiseUseCase;
+import co.com.bancolombia.usecase.renameproduct.RenameProductUseCase;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -70,6 +71,9 @@ class RouterRestTest {
 
     @MockitoBean
     private RenameBranchUseCase renameBranchUseCase;
+
+    @MockitoBean
+    private RenameProductUseCase renameProductUseCase;
 
     @Test
     void createFranchiseReturns201WithLocationAndBody() {
@@ -551,6 +555,103 @@ class RouterRestTest {
     }
 
     @Test
+    void renameProductReturns200WithStrippedNameStockAndNoLocation() {
+        UUID franchiseId = UUID.randomUUID();
+        UUID branchId = UUID.randomUUID();
+        UUID id = UUID.randomUUID();
+        when(renameProductUseCase.execute(franchiseId, branchId, id, "  Cola  "))
+                .thenReturn(Mono.just(Product.builder().id(id).branchId(branchId).name("Cola").stock(7).build()));
+
+        patchProduct(franchiseId.toString(), branchId.toString(), id.toString(), Map.of("name", "  Cola  "))
+                .expectStatus().isOk()
+                .expectHeader().doesNotExist("Location")
+                .expectBody()
+                .jsonPath("$.id").isEqualTo(id.toString())
+                .jsonPath("$.name").isEqualTo("Cola")
+                .jsonPath("$.stock").isEqualTo(7);
+    }
+
+    @Test
+    void renameProductIgnoresUnknownFieldsIncludingStock() {
+        UUID id = UUID.randomUUID();
+        when(renameProductUseCase.execute(any(UUID.class), any(UUID.class), eq(id), eq("Cola")))
+                .thenReturn(Mono.just(Product.builder().id(id).branchId(UUID.randomUUID()).name("Cola").stock(7).build()));
+
+        patchProduct(UUID.randomUUID().toString(), UUID.randomUUID().toString(), id.toString(),
+                "{\"name\": \"Cola\", \"stock\": 99, \"extra\": true}")
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.stock").isEqualTo(7);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "INVALID_PRODUCT_NAME, 400",
+            "FRANCHISE_NOT_FOUND, 404",
+            "BRANCH_NOT_FOUND, 404",
+            "PRODUCT_NOT_FOUND, 404",
+            "DUPLICATE_PRODUCT_NAME, 409"
+    })
+    void renameProductMapsBusinessErrorsToStatusAndCode(ErrorCode errorCode, int status) {
+        when(renameProductUseCase.execute(any(UUID.class), any(UUID.class), any(UUID.class), any()))
+                .thenReturn(Mono.error(new BusinessException(errorCode)));
+
+        patchProduct(UUID.randomUUID().toString(), UUID.randomUUID().toString(), UUID.randomUUID().toString(),
+                Map.of("name", "Cola"))
+                .expectStatus().isEqualTo(status)
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(errorCode.name())
+                .jsonPath("$.message").isEqualTo(new BusinessException(errorCode).getMessage());
+    }
+
+    @Test
+    void renameProductPassesAMissingNameToTheUseCase() {
+        when(renameProductUseCase.execute(any(UUID.class), any(UUID.class), any(UUID.class), eq(null)))
+                .thenReturn(Mono.error(new BusinessException(ErrorCode.INVALID_PRODUCT_NAME)));
+
+        patchProduct(UUID.randomUUID().toString(), UUID.randomUUID().toString(), UUID.randomUUID().toString(), "{}")
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_PRODUCT_NAME");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{\"name\": ", "{\"name\": 123}", "{\"name\": true}"})
+    void renameProductReturns400InvalidRequestForMalformedJsonOrWrongType(String body) {
+        patchProduct(UUID.randomUUID().toString(), UUID.randomUUID().toString(), UUID.randomUUID().toString(), body)
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_REQUEST");
+        verifyNoInteractions(renameProductUseCase);
+    }
+
+    @Test
+    void renameProductReturns400InvalidRequestForMissingBody() {
+        webTestClient.patch()
+                .uri("/franchises/{franchiseId}/branches/{branchId}/products/{id}", UUID.randomUUID(),
+                        UUID.randomUUID(), UUID.randomUUID())
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_REQUEST");
+        verifyNoInteractions(renameProductUseCase);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "not-a-uuid, 3f2c7a1e-8d4b-4c59-9a6e-1b2d3c4e5f60, 3f2c7a1e-8d4b-4c59-9a6e-1b2d3c4e5f60",
+            "3f2c7a1e-8d4b-4c59-9a6e-1b2d3c4e5f60, not-a-uuid, 3f2c7a1e-8d4b-4c59-9a6e-1b2d3c4e5f60",
+            "3f2c7a1e-8d4b-4c59-9a6e-1b2d3c4e5f60, 3f2c7a1e-8d4b-4c59-9a6e-1b2d3c4e5f60, not-a-uuid"
+    })
+    void renameProductChecksTheIdsBeforeTheName(String franchiseId, String branchId, String id) {
+        patchProduct(franchiseId, branchId, id, Map.of("name", " "))
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_REQUEST");
+        verifyNoInteractions(renameProductUseCase);
+    }
+
+    @Test
     void deleteProductReturns204WithoutBody() {
         UUID franchiseId = UUID.randomUUID();
         UUID branchId = UUID.randomUUID();
@@ -782,6 +883,14 @@ class RouterRestTest {
                 .uri("/franchises/{franchiseId}/branches", franchiseId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON)
+                .bodyValue(body)
+                .exchange();
+    }
+
+    private WebTestClient.ResponseSpec patchProduct(String franchiseId, String branchId, String id, Object body) {
+        return webTestClient.patch()
+                .uri("/franchises/{franchiseId}/branches/{branchId}/products/{id}", franchiseId, branchId, id)
+                .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(body)
                 .exchange();
     }

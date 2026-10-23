@@ -21,6 +21,15 @@ public record Product(UUID id, UUID branchId, String name, Integer stock) {
         validateStock(stock);
     }
 
+    /** Strips the name and fails with INVALID_PRODUCT_NAME when it is blank or too long. */
+    public static String validName(String name) {
+        String stripped = name == null ? "" : name.strip();
+        if (stripped.isEmpty() || stripped.length() > MAX_NAME_LENGTH) {
+            throw new BusinessException(ErrorCode.INVALID_PRODUCT_NAME);
+        }
+        return stripped;
+    }
+
     /** Fails with a Business Exception coded INVALID_STOCK when the stock is missing or negative. */
     public static void validateStock(Integer stock) {
         if (stock == null || stock < 0) {
@@ -28,11 +37,4 @@ public record Product(UUID id, UUID branchId, String name, Integer stock) {
         }
     }
 
-    private static String validName(String name) {
-        String stripped = name == null ? "" : name.strip();
-        if (stripped.isEmpty() || stripped.length() > MAX_NAME_LENGTH) {
-            throw new BusinessException(ErrorCode.INVALID_PRODUCT_NAME);
-        }
-        return stripped;
-    }
 }

@@ -11,6 +11,7 @@ import co.com.bancolombia.api.dto.ProductResponse;
 import co.com.bancolombia.api.dto.UpdateStockRequest;
 import co.com.bancolombia.api.dto.RenameBranchRequest;
 import co.com.bancolombia.api.dto.RenameFranchiseRequest;
+import co.com.bancolombia.api.dto.RenameProductRequest;
 import co.com.bancolombia.api.dto.TopStockReportResponse;
 import co.com.bancolombia.model.branch.Branch;
 import co.com.bancolombia.model.exception.BusinessException;
@@ -28,6 +29,7 @@ import co.com.bancolombia.usecase.updateproductstock.UpdateProductStockUseCase;
 import co.com.bancolombia.usecase.gettopstockreport.GetTopStockReportUseCase;
 import co.com.bancolombia.usecase.renamebranch.RenameBranchUseCase;
 import co.com.bancolombia.usecase.renamefranchise.RenameFranchiseUseCase;
+import co.com.bancolombia.usecase.renameproduct.RenameProductUseCase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -58,6 +60,7 @@ public class Handler {
     private final GetTopStockReportUseCase getTopStockReportUseCase;
     private final RenameFranchiseUseCase renameFranchiseUseCase;
     private final RenameBranchUseCase renameBranchUseCase;
+    private final RenameProductUseCase renameProductUseCase;
 
     public Mono<ServerResponse> createFranchise(ServerRequest serverRequest) {
         return readBody(serverRequest, CreateFranchiseRequest.class)
@@ -115,6 +118,17 @@ public class Handler {
                                 .build(serverRequest.pathVariable(ApiPaths.FRANCHISE_ID), product.branchId(),
                                         product.id()))
                         .bodyValue(toResponse(product)))
+                .transform(this::handleDomainErrors);
+    }
+
+    public Mono<ServerResponse> renameProduct(ServerRequest serverRequest) {
+        return Mono.zip(parseId(serverRequest.pathVariable(ApiPaths.FRANCHISE_ID)),
+                        parseId(serverRequest.pathVariable(ApiPaths.BRANCH_ID)),
+                        parseId(serverRequest.pathVariable(ApiPaths.ID)))
+                .flatMap(ids -> readBody(serverRequest, RenameProductRequest.class)
+                        .flatMap(request -> renameProductUseCase.execute(ids.getT1(), ids.getT2(), ids.getT3(),
+                                request.name())))
+                .flatMap(product -> ServerResponse.ok().bodyValue(toResponse(product)))
                 .transform(this::handleDomainErrors);
     }
 

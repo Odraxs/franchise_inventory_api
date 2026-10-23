@@ -68,6 +68,65 @@ class ProductRepositoryAdapterTest {
     }
 
     @Test
+    void renameEmitsTheUpdatedProductWithItsStock() {
+        UUID id = UUID.randomUUID();
+        when(repository.rename(id, BRANCH_ID, "Cola")).thenReturn(Mono.just(new ProductData(id, BRANCH_ID, "Cola", 5)));
+
+        StepVerifier.create(adapter.rename(id, BRANCH_ID, "Cola"))
+                .expectNextMatches(product -> id.equals(product.id()) && BRANCH_ID.equals(product.branchId())
+                        && "Cola".equals(product.name()) && product.stock() == 5)
+                .verifyComplete();
+    }
+
+    @Test
+    void renameEmitsEmptyWhenNoActiveRowMatches() {
+        UUID id = UUID.randomUUID();
+        when(repository.rename(id, BRANCH_ID, "Cola")).thenReturn(Mono.empty());
+
+        StepVerifier.create(adapter.rename(id, BRANCH_ID, "Cola")).verifyComplete();
+    }
+
+    @Test
+    void renameMapsDuplicateKeyToDuplicateProductName() {
+        UUID id = UUID.randomUUID();
+        when(repository.rename(id, BRANCH_ID, "Cola"))
+                .thenReturn(Mono.error(new DuplicateKeyException("uq_product_branch_name")));
+
+        StepVerifier.create(adapter.rename(id, BRANCH_ID, "Cola"))
+                .expectErrorMatches(error -> error instanceof BusinessException exception
+                        && exception.getErrorCode() == ErrorCode.DUPLICATE_PRODUCT_NAME)
+                .verify();
+    }
+
+    @Test
+    void stalledRenameFailsWithDatabaseUnavailableWithoutRetrying() {
+        UUID id = UUID.randomUUID();
+        PublisherProbe<ProductData> stalled = PublisherProbe.of(Mono.never());
+        when(repository.rename(id, BRANCH_ID, "Cola")).thenReturn(stalled.mono());
+
+        StepVerifier.withVirtualTime(() -> adapter.rename(id, BRANCH_ID, "Cola"))
+                .expectSubscription()
+                .thenAwait(DatabaseResilienceFixture.TIMEOUT.plus(ALL_BACKOFFS))
+                .expectErrorMatches(error -> error instanceof TechnicalException exception
+                        && exception.getErrorCode() == TechnicalException.ErrorCode.DATABASE_UNAVAILABLE)
+                .verify();
+        assertThat(stalled.subscribeCount()).isEqualTo(1);
+    }
+
+    @Test
+    void renameDuplicateNameIsTriedOnceAndMapsToDuplicateProductName() {
+        UUID id = UUID.randomUUID();
+        PublisherProbe<ProductData> duplicate = PublisherProbe.of(Mono.error(new DuplicateKeyException("uq_product_branch_name")));
+        when(repository.rename(id, BRANCH_ID, "Cola")).thenReturn(duplicate.mono());
+
+        StepVerifier.create(adapter.rename(id, BRANCH_ID, "Cola"))
+                .expectErrorMatches(error -> error instanceof BusinessException exception
+                        && exception.getErrorCode() == ErrorCode.DUPLICATE_PRODUCT_NAME)
+                .verify();
+        assertThat(duplicate.subscribeCount()).isEqualTo(1);
+    }
+
+    @Test
     void propagatesOtherErrorsUnchanged() {
         when(repository.save(new ProductData(null, BRANCH_ID, "Cola", 5)))
                 .thenReturn(Mono.error(new DataIntegrityViolationException("ck_product_stock_non_negative")));
