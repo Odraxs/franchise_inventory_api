@@ -21,17 +21,18 @@ public record Product(UUID id, UUID branchId, String name, Integer stock) {
         validateStock(stock);
     }
 
+    /** Fails with a Business Exception coded INVALID_STOCK when the stock is missing or negative. */
+    public static void validateStock(Integer stock) {
+        if (stock == null || stock < 0) {
+            throw new BusinessException(ErrorCode.INVALID_STOCK);
+        }
+    }
+
     private static String validName(String name) {
         String stripped = name == null ? "" : name.strip();
         if (stripped.isEmpty() || stripped.length() > MAX_NAME_LENGTH) {
             throw new BusinessException(ErrorCode.INVALID_PRODUCT_NAME);
         }
         return stripped;
-    }
-
-    private static void validateStock(Integer stock) {
-        if (stock == null || stock < 0) {
-            throw new BusinessException(ErrorCode.INVALID_STOCK);
-        }
     }
 }

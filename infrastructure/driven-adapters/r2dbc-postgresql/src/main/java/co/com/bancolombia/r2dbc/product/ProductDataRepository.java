@@ -4,7 +4,6 @@ import org.springframework.data.r2dbc.repository.Modifying;
 import org.springframework.data.r2dbc.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.repository.reactive.ReactiveCrudRepository;
-
 import reactor.core.publisher.Mono;
 
 import java.util.UUID;
@@ -15,4 +14,10 @@ public interface ProductDataRepository extends ReactiveCrudRepository<ProductDat
     @Modifying
     @Query("UPDATE product SET deleted_at = now() WHERE id = :id AND branch_id = :branchId AND deleted_at IS NULL")
     Mono<Integer> softDelete(@Param("id") UUID id, @Param("branchId") UUID branchId);
+
+    /** Updates the stock of an active product of the branch; emits nothing when no row matches. */
+    @Query("UPDATE product SET stock = :stock WHERE id = :id AND branch_id = :branchId AND deleted_at IS NULL "
+            + "RETURNING id, branch_id, name, stock")
+    Mono<ProductData> updateStock(@Param("id") UUID id, @Param("branchId") UUID branchId,
+                                  @Param("stock") Integer stock);
 }

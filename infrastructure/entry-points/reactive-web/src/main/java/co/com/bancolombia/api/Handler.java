@@ -7,6 +7,7 @@ import co.com.bancolombia.api.dto.ErrorResponse;
 import co.com.bancolombia.api.dto.CreateProductRequest;
 import co.com.bancolombia.api.dto.FranchiseResponse;
 import co.com.bancolombia.api.dto.ProductResponse;
+import co.com.bancolombia.api.dto.UpdateStockRequest;
 import co.com.bancolombia.model.branch.Branch;
 import co.com.bancolombia.model.exception.BusinessException;
 import co.com.bancolombia.model.exception.BusinessException.ErrorCode;
@@ -18,6 +19,7 @@ import co.com.bancolombia.usecase.addbranch.AddBranchUseCase;
 import co.com.bancolombia.usecase.addproduct.AddProductUseCase;
 import co.com.bancolombia.usecase.createfranchise.CreateFranchiseUseCase;
 import co.com.bancolombia.usecase.deleteproduct.DeleteProductUseCase;
+import co.com.bancolombia.usecase.updateproductstock.UpdateProductStockUseCase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -42,6 +44,7 @@ public class Handler {
     private final AddBranchUseCase addBranchUseCase;
     private final AddProductUseCase addProductUseCase;
     private final DeleteProductUseCase deleteProductUseCase;
+    private final UpdateProductStockUseCase updateProductStockUseCase;
 
     public Mono<ServerResponse> createFranchise(ServerRequest serverRequest) {
         return serverRequest.bodyToMono(CreateFranchiseRequest.class)
@@ -52,7 +55,7 @@ public class Handler {
                 .flatMap(createFranchiseUseCase::execute)
                 .flatMap(franchise -> ServerResponse
                         .created(UriComponentsBuilder.fromPath(ApiPaths.FRANCHISE).build(franchise.id()))
-                        .bodyValue(new FranchiseResponse(franchise.id(), franchise.name())))
+                        .bodyValue(FranchiseResponse.builder().id(franchise.id()).name(franchise.name()).build()))
                 .transform(this::handleDomainErrors);
     }
 
@@ -67,7 +70,7 @@ public class Handler {
                 .flatMap(branch -> ServerResponse
                         .created(UriComponentsBuilder.fromPath(ApiPaths.BRANCH)
                                 .build(branch.franchiseId(), branch.id()))
-                        .bodyValue(new BranchResponse(branch.id(), branch.name())))
+                        .bodyValue(BranchResponse.builder().id(branch.id()).name(branch.name()).build()))
                 .transform(this::handleDomainErrors);
     }
 
@@ -85,7 +88,8 @@ public class Handler {
                         .created(UriComponentsBuilder.fromPath(ApiPaths.PRODUCT)
                                 .build(serverRequest.pathVariable(ApiPaths.FRANCHISE_ID), product.branchId(),
                                         product.id()))
-                        .bodyValue(new ProductResponse(product.id(), product.name(), product.stock())))
+                        .bodyValue(ProductResponse.builder().id(product.id()).name(product.name())
+                                .stock(product.stock()).build()))
                 .transform(this::handleDomainErrors);
     }
 
@@ -95,6 +99,22 @@ public class Handler {
                         parseId(serverRequest.pathVariable(ApiPaths.ID)))
                 .flatMap(ids -> deleteProductUseCase.execute(ids.getT1(), ids.getT2(), ids.getT3()))
                 .then(Mono.defer(() -> ServerResponse.noContent().build()))
+                .transform(this::handleDomainErrors);
+    }
+
+    public Mono<ServerResponse> updateProductStock(ServerRequest serverRequest) {
+        return Mono.zip(parseId(serverRequest.pathVariable(ApiPaths.FRANCHISE_ID)),
+                        parseId(serverRequest.pathVariable(ApiPaths.BRANCH_ID)),
+                        parseId(serverRequest.pathVariable(ApiPaths.ID)))
+                .flatMap(ids -> serverRequest.bodyToMono(UpdateStockRequest.class)
+                        .onErrorMap(ServerWebInputException.class,
+                                error -> new BusinessException(ErrorCode.INVALID_REQUEST, error))
+                        .switchIfEmpty(Mono.error(() -> new BusinessException(ErrorCode.INVALID_REQUEST)))
+                        .flatMap(request -> updateProductStockUseCase.execute(ids.getT1(), ids.getT2(), ids.getT3(),
+                                request.stock())))
+                .flatMap(product -> ServerResponse.ok()
+                        .bodyValue(ProductResponse.builder().id(product.id()).name(product.name())
+                                .stock(product.stock()).build()))
                 .transform(this::handleDomainErrors);
     }
 
@@ -119,7 +139,8 @@ public class Handler {
     private Mono<ServerResponse> toErrorResponse(DomainException exception) {
         return ServerResponse
                 .status(statusOf(exception))
-                .bodyValue(new ErrorResponse(exception.getCode(), exception.getMessage()));
+                .bodyValue(ErrorResponse.builder().code(exception.getCode())
+                        .message(exception.getMessage()).build());
     }
 
     /** A technical failure is always 503, whatever its code name; a business failure keeps the code-name rules. */

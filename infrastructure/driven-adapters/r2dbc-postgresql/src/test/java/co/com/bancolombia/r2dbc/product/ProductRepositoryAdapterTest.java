@@ -149,6 +149,27 @@ class ProductRepositoryAdapterTest {
         assertThat(duplicate.subscribeCount()).isEqualTo(1);
     }
 
+    @Test
+    void updatesStockAndEmitsTheUpdatedProduct() {
+        UUID id = UUID.randomUUID();
+        when(repository.updateStock(id, BRANCH_ID, 0))
+                .thenReturn(Mono.just(new ProductData(id, BRANCH_ID, "Cola", 0)));
+
+        StepVerifier.create(adapter.updateStock(id, BRANCH_ID, 0))
+                .expectNextMatches(product -> id.equals(product.id()) && BRANCH_ID.equals(product.branchId())
+                        && "Cola".equals(product.name()) && product.stock() == 0)
+                .verifyComplete();
+    }
+
+    @Test
+    void updateStockEmitsNothingWhenNoActiveProductMatches() {
+        UUID id = UUID.randomUUID();
+        when(repository.updateStock(id, BRANCH_ID, 3)).thenReturn(Mono.empty());
+
+        StepVerifier.create(adapter.updateStock(id, BRANCH_ID, 3))
+                .verifyComplete();
+    }
+
     private static Product product() {
         return Product.builder().branchId(BRANCH_ID).name("Cola").stock(5).build();
     }
