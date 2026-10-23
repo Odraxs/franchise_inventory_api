@@ -22,7 +22,7 @@ info:
 
     Names are stripped of surrounding whitespace and must have 1 to 100 characters. Stock is an integer from 0 to 2147483647.
 servers:
-  - url: http://localhost:8080
+  - url: /
     description: Local
 # Every operation needs the API Credential; Swagger UI's "Authorize" sends it on "Try it out"
 security:
