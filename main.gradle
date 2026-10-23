@@ -37,6 +37,10 @@ subprojects {
 
     test {
         useJUnitPlatform()
+        // ArchitectureTest only logs rule violations; CI greps the build log for them
+        testLogging {
+            showStandardStreams = true
+        }
     }
 
     dependencies {
