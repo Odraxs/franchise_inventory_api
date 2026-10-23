@@ -162,3 +162,33 @@ Every error answers with a JSON body `{"code": "...", "message": "..."}`. The co
 | `DATABASE_UNAVAILABLE` | 503 | The database is unreachable, slow, or its circuit breaker is open |
 
 Names are trimmed and must have 1 to 100 characters. Stock is an integer from 0 to 2147483647. The Swagger UI lists the exact codes of each endpoint.
+
+## 4. Tests
+
+The tests need only the JDK; they do not use the database.
+
+```bash
+./gradlew vs test
+```
+
+- `vs` (`validateStructure`) checks the layer dependency rule of the clean architecture.
+- `test` runs the unit tests of every module, including `ArchitectureTest` in `app-service`. Test reports land in `<module>/build/reports/tests/test/index.html`.
+
+## 5. Project structure
+
+Dependencies point inward only: `app-service` → `infrastructure` → `usecase` → `model`.
+
+```text
+applications/app-service/          MainApplication, bean wiring, application*.yaml
+domain/model/                      Entities (Franchise, Branch, Product), domain errors, gateway interfaces
+domain/usecase/                    One use case per operation (business rules)
+infrastructure/driven-adapters/
+  r2dbc-postgresql/                Gateway implementations on R2DBC, Flyway migrations (db/migration)
+infrastructure/entry-points/
+  reactive-web/                    RouterRest + Handler, request/response DTOs, error mapping, openapi.yaml
+deployment/Dockerfile              Multi-stage image build (JDK build, JRE runtime)
+docker-compose.yml                 PostgreSQL + app
+```
+
+- Architecture, layer rules and how to add code: [`AGENTS.md`](AGENTS.md)
+- Code standards (reactive, resilience, Java, tests): [`CODING_STANDARDS.md`](CODING_STANDARDS.md)
