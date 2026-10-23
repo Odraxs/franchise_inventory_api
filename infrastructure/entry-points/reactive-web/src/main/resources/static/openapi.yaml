@@ -19,11 +19,17 @@ info:
 servers:
   - url: http://localhost:8080
     description: Local
+# The API has no authentication
+security: []
 tags:
   - name: Franchises
+    description: Create and rename franchises
   - name: Branches
+    description: Add and rename the branches of a franchise
   - name: Products
+    description: Add, rename, delete and restock the products of a branch
   - name: Reports
+    description: Stock reports across the branches of a franchise
 
 paths:
   /franchises:
