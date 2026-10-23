@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Cancel older runs of the same branch or PR when a new commit arrives
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # Caches Gradle and validates the wrapper jar checksum
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
+
+      - name: Validate layer structure
+        run: ./gradlew validateStructure --console=plain
+
+      # `build` runs the unit tests, PIT mutation tests and JaCoCo reports
+      - name: Build and run tests
+        # Explicit bash enables pipefail, so a failed build still fails the step through `tee`
+        shell: bash
+        # pitestReportAggregate cannot be stored in the configuration cache
+        run: ./gradlew build jacocoMergedCoverageVerification --no-configuration-cache --console=plain 2>&1 | tee build.log
+
+      # ArchitectureTest logs rule violations as warnings instead of failing the test
+      - name: Check architecture rules
+        run: |
+          if grep -n "ARCHITECTURE_RULE_VIOLATED" build.log; then
+            echo "::error::ArchitectureTest reported rule violations. See the lines above."
+            exit 1
+          fi
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: test-reports
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/test/
+          retention-days: 1
+
+      - name: Upload coverage and mutation reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage-reports
+          path: |
+            build/reports/jacocoMergedReport/
+            build/reports/pitest/
+            **/build/reports/pitest/
+          retention-days: 1
