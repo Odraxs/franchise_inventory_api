@@ -30,8 +30,12 @@ db_secret_recovery_window_days = 30
 api_secret_recovery_window_days = 30
 api_credential_version          = 1
 
-# ALB: public HTTP on port 80. With a real domain, set alb_certificate_arn to an
-# ACM certificate ARN to add HTTPS on port 443 and redirect HTTP to it.
+# ALB: HTTPS on port 443, and HTTP on port 80 redirects to it. prod requires a
+# certificate (a variable validation rejects an empty alb_certificate_arn), because
+# the API Credential travels in every request with HTTP Basic.
+# PLACEHOLDER: account 000000000000 does not exist. Replace this ARN with the ARN
+# of a real ACM certificate for the prod domain before any real prod apply.
+alb_certificate_arn       = "arn:aws:acm:us-east-1:000000000000:certificate/00000000-0000-0000-0000-000000000000"
 alb_allowed_ingress_cidrs = ["0.0.0.0/0"]
 
 # ECS: regular Fargate (no Spot reclaims), tasks in the private subnets without a

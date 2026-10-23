@@ -173,6 +173,8 @@ variables {
   api_secret_recovery_window_days = 30
   api_credential_version          = 1
 
+  # Placeholder ARN of envs/prod.tfvars (account 000000000000 does not exist).
+  alb_certificate_arn       = "arn:aws:acm:us-east-1:000000000000:certificate/00000000-0000-0000-0000-000000000000"
   alb_allowed_ingress_cidrs = ["0.0.0.0/0"]
 
   tasks_in_private_subnets = true
@@ -296,10 +298,25 @@ run "prod_plan" {
 
   assert {
     condition = (
+      module.alb.actuator_rule.listener_port == 443 &&
       module.alb.actuator_rule.status_code == "404" &&
       contains(module.alb.actuator_rule.path_patterns, "/actuator/*")
     )
-    error_message = "The prod ALB must answer a fixed 404 for /actuator/*."
+    error_message = "The prod ALB must answer a fixed 404 for /actuator/* on the HTTPS listener."
+  }
+
+  # prod serves only HTTPS: HTTP Basic credentials never travel over plain HTTP.
+  assert {
+    condition = module.alb.listeners == [
+      { port = 80, protocol = "HTTP", default_action = "redirect" },
+      { port = 443, protocol = "HTTPS", default_action = "forward" },
+    ]
+    error_message = "In prod, HTTP must only redirect, and only HTTPS may forward to the tasks."
+  }
+
+  assert {
+    condition     = startswith(output.alb_url, "https://")
+    error_message = "The prod alb_url must be https://<ALB DNS name>."
   }
 
   assert {
@@ -308,8 +325,8 @@ run "prod_plan" {
   }
 
   assert {
-    condition     = module.alb.ingress_rules == toset([{ cidr = "0.0.0.0/0", port = 80 }])
-    error_message = "The prod ALB must accept only port 80, from alb_allowed_ingress_cidrs."
+    condition     = module.alb.ingress_rules == toset([{ cidr = "0.0.0.0/0", port = 80 }, { cidr = "0.0.0.0/0", port = 443 }])
+    error_message = "The prod ALB must accept only ports 80 (redirect) and 443, from alb_allowed_ingress_cidrs."
   }
 
   assert {
@@ -352,6 +369,16 @@ run "prod_plan" {
     }]
     error_message = "The prod task role may only call secretsmanager:GetSecretValue on exactly two ARNs: the DB Secret and the API Secret."
   }
+}
+
+run "prod_without_certificate_is_rejected" {
+  command = plan
+
+  variables {
+    alb_certificate_arn = ""
+  }
+
+  expect_failures = [var.alb_certificate_arn]
 }
 
 run "prod_service_plan" {

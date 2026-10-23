@@ -181,10 +181,15 @@ variable "alb_allowed_ingress_cidrs" {
 }
 
 variable "alb_certificate_arn" {
-  description = "ARN of an ACM certificate for the ALB. Empty means HTTP only. Set, it adds HTTPS on port 443 and HTTP redirects to HTTPS."
+  description = "ARN of an ACM certificate for the ALB. Empty means HTTP only. Set, it adds HTTPS on port 443 and HTTP redirects to HTTPS. Required in prod, because the API Credential travels in every request with HTTP Basic."
   type        = string
   default     = ""
   nullable    = false
+
+  validation {
+    condition     = var.environment != "prod" || var.alb_certificate_arn != ""
+    error_message = "prod requires HTTPS: set alb_certificate_arn to an ACM certificate ARN, so HTTP Basic credentials never travel over plain HTTP."
+  }
 }
 
 variable "ecs_capacity_provider" {

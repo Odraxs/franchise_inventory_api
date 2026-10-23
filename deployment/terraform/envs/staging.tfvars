@@ -34,7 +34,8 @@ api_secret_recovery_window_days = 7
 api_credential_version          = 1
 
 # ALB: public HTTP on port 80. Set alb_certificate_arn to an ACM certificate ARN
-# to add HTTPS on port 443 and redirect HTTP to it.
+# to add HTTPS on port 443 and redirect HTTP to it. Without a certificate, the API
+# Credential travels over plain HTTP, like in dev (accepted risk: staging is not deployed).
 alb_allowed_ingress_cidrs = ["0.0.0.0/0"]
 
 # ECS: private tasks behind the NAT Gateway, like prod, so staging rehearses the

@@ -30,6 +30,7 @@ api_secret_recovery_window_days = 0
 api_credential_version          = 1
 
 # ALB: public HTTP on port 80. No domain, so no certificate (alb_certificate_arn stays empty).
+# Accepted risk: the API Credential travels over plain HTTP (HTTP Basic is only base64).
 alb_allowed_ingress_cidrs = ["0.0.0.0/0"]
 
 # ECS: Fargate Spot (much cheaper; a reclaimed task is replaced), tasks in the

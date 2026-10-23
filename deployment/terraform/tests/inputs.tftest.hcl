@@ -182,6 +182,19 @@ run "alb_with_certificate_serves_https_and_redirects_http" {
   }
 }
 
+run "dev_and_staging_may_run_without_certificate" {
+  command = plan
+
+  variables {
+    environment = "staging"
+  }
+
+  assert {
+    condition     = startswith(output.alb_url, "http://")
+    error_message = "Only prod requires HTTPS: staging (like dev) may serve plain HTTP without a certificate."
+  }
+}
+
 run "api_credential_version_drives_the_api_secret_version" {
   command = plan
 
