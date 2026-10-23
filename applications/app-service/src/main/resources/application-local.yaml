@@ -20,6 +20,11 @@ management:
     health:
       probes:
         enabled: true
+# Fixed dev API Credential (curl -u inventory-client:<password>); never use it outside local development
+security:
+  client:
+    username: "inventory-client"
+    password: "local-dev-only-api-credential-do-not-use-in-aws"
 cors:
   allowed-origins: "http://localhost:4200,http://localhost:8080"
 adapters:

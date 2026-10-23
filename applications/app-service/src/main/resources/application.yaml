@@ -70,6 +70,11 @@ resilience4j:
         # Connection-level errors only: an INSERT that timed out may already be committed
         retry-exceptions:
           - org.springframework.dao.TransientDataAccessResourceException
+# API Credential of the single trusted Client: every profile must set both, or the app does not start
+security:
+  client:
+    username:
+    password:
 cors:
   allowed-origins: "http://localhost:4200,http://localhost:8080"
 adapters:

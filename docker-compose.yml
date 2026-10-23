@@ -28,6 +28,9 @@ services:
       ADAPTERS_R2DBC_DATABASE: ${DB_NAME:-franchise_inventory}
       ADAPTERS_R2DBC_USERNAME: ${DB_USERNAME:-postgres}
       ADAPTERS_R2DBC_PASSWORD: ${DB_PASSWORD:-postgres}
+      # Fixed dev API Credential, the same pair as the local profile; never use it outside local development
+      SECURITY_CLIENT_USERNAME: inventory-client
+      SECURITY_CLIENT_PASSWORD: local-dev-only-api-credential-do-not-use-in-aws
     ports:
       - "8080:8080"
     depends_on:

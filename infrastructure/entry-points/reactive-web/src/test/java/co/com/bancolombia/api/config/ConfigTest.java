@@ -13,7 +13,7 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
-@Import({CorsConfig.class, SecurityHeadersConfig.class})
+@Import(SecurityHeadersConfig.class)
 class ConfigTest extends ApiTestBase {
 
     @Test

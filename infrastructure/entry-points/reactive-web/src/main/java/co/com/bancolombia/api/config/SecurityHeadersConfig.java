@@ -1,5 +1,7 @@
 package co.com.bancolombia.api.config;
 
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
@@ -7,7 +9,9 @@ import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 
+/** Runs before the Spring Security filter chain, so a 401 from the chain carries these headers too. */
 @Component
+@Order(Ordered.HIGHEST_PRECEDENCE)
 public class SecurityHeadersConfig implements WebFilter {
 
     @Override
