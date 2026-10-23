@@ -15,6 +15,7 @@ import co.com.bancolombia.usecase.createfranchise.CreateFranchiseUseCase;
 import co.com.bancolombia.usecase.deleteproduct.DeleteProductUseCase;
 import co.com.bancolombia.usecase.updateproductstock.UpdateProductStockUseCase;
 import co.com.bancolombia.usecase.gettopstockreport.GetTopStockReportUseCase;
+import co.com.bancolombia.usecase.renamebranch.RenameBranchUseCase;
 import co.com.bancolombia.usecase.renamefranchise.RenameFranchiseUseCase;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -66,6 +67,9 @@ class RouterRestTest {
 
     @MockitoBean
     private RenameFranchiseUseCase renameFranchiseUseCase;
+
+    @MockitoBean
+    private RenameBranchUseCase renameBranchUseCase;
 
     @Test
     void createFranchiseReturns201WithLocationAndBody() {
@@ -247,6 +251,91 @@ class RouterRestTest {
                 .expectBody()
                 .jsonPath("$.code").isEqualTo("INVALID_REQUEST");
         verifyNoInteractions(renameFranchiseUseCase);
+    }
+
+    @Test
+    void renameBranchReturns200WithStrippedNameAndNoLocation() {
+        UUID franchiseId = UUID.randomUUID();
+        UUID id = UUID.randomUUID();
+        when(renameBranchUseCase.execute(argThat(branch -> id.equals(branch.id())
+                && franchiseId.equals(branch.franchiseId()) && "Centro".equals(branch.name()))))
+                .thenReturn(Mono.just(Branch.builder().id(id).franchiseId(franchiseId).name("Centro").build()));
+
+        patchBranch(franchiseId.toString(), id.toString(), Map.of("name", "  Centro  "))
+                .expectStatus().isOk()
+                .expectHeader().doesNotExist("Location")
+                .expectBody()
+                .jsonPath("$.id").isEqualTo(id.toString())
+                .jsonPath("$.name").isEqualTo("Centro")
+                .jsonPath("$.franchiseId").doesNotExist();
+    }
+
+    @Test
+    void renameBranchIgnoresUnknownFieldsIncludingStock() {
+        UUID id = UUID.randomUUID();
+        when(renameBranchUseCase.execute(any(Branch.class)))
+                .thenReturn(Mono.just(Branch.builder().id(id).franchiseId(UUID.randomUUID()).name("Centro").build()));
+
+        patchBranch(UUID.randomUUID().toString(), id.toString(), "{\"name\": \"Centro\", \"stock\": 5, \"extra\": true}")
+                .expectStatus().isOk();
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "FRANCHISE_NOT_FOUND, 404",
+            "BRANCH_NOT_FOUND, 404",
+            "DUPLICATE_BRANCH_NAME, 409"
+    })
+    void renameBranchMapsBusinessErrorsToStatusAndCode(ErrorCode errorCode, int status) {
+        when(renameBranchUseCase.execute(any(Branch.class))).thenReturn(Mono.error(new BusinessException(errorCode)));
+
+        patchBranch(UUID.randomUUID().toString(), UUID.randomUUID().toString(), Map.of("name", "Centro"))
+                .expectStatus().isEqualTo(status)
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(errorCode.name())
+                .jsonPath("$.message").isEqualTo(new BusinessException(errorCode).getMessage());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"name\": null}", "{\"name\": \"\"}", "{\"name\": \"   \"}",
+            "{\"name\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}"})
+    void renameBranchReturns400InvalidBranchNameWithoutCallingTheUseCase(String body) {
+        patchBranch(UUID.randomUUID().toString(), UUID.randomUUID().toString(), body)
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_BRANCH_NAME");
+        verifyNoInteractions(renameBranchUseCase);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{\"name\": ", "{\"name\": 123}", "{\"name\": true}"})
+    void renameBranchReturns400InvalidRequestForMalformedJsonOrWrongType(String body) {
+        patchBranch(UUID.randomUUID().toString(), UUID.randomUUID().toString(), body)
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_REQUEST");
+        verifyNoInteractions(renameBranchUseCase);
+    }
+
+    @Test
+    void renameBranchReturns400InvalidRequestForMissingBody() {
+        webTestClient.patch()
+                .uri("/franchises/{franchiseId}/branches/{id}", UUID.randomUUID(), UUID.randomUUID())
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_REQUEST");
+        verifyNoInteractions(renameBranchUseCase);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"not-a-uuid, 3f2c7a1e-8d4b-4c59-9a6e-1b2d3c4e5f60", "3f2c7a1e-8d4b-4c59-9a6e-1b2d3c4e5f60, not-a-uuid"})
+    void renameBranchChecksTheIdsBeforeTheName(String franchiseId, String id) {
+        patchBranch(franchiseId, id, Map.of("name", " "))
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_REQUEST");
+        verifyNoInteractions(renameBranchUseCase);
     }
 
     @Test
@@ -691,6 +780,15 @@ class RouterRestTest {
     private WebTestClient.ResponseSpec postBranch(String franchiseId, Object body) {
         return webTestClient.post()
                 .uri("/franchises/{franchiseId}/branches", franchiseId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .bodyValue(body)
+                .exchange();
+    }
+
+    private WebTestClient.ResponseSpec patchBranch(String franchiseId, String id, Object body) {
+        return webTestClient.patch()
+                .uri("/franchises/{franchiseId}/branches/{id}", franchiseId, id)
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON)
                 .bodyValue(body)
