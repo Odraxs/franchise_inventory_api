@@ -33,7 +33,7 @@ Infrastructure modules never depend on `app-service` or on each other.
 - Map persistence types to domain models inside the adapter.
 
 **Entry points**
-- `RouterRest` maps routes; `Handler` parses the request, calls a use case, and builds the response.
+- `RouterRest` maps routes; one handler per resource (`FranchiseHandler`, `BranchHandler`, `ProductHandler`, `TopStockHandler`) parses the request, calls a use case, and builds the response. Put a new endpoint in its resource's handler (or a new one), never in a shared catch-all class. Shared request parsing lives in `RequestReader`, error mapping in `ErrorResponses`.
 - Request/response DTOs live in the entry point. Map them to domain models before calling the use case.
 - Business rules go in the use case; the handler stays thin.
 

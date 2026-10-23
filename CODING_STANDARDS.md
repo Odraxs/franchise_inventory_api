@@ -37,9 +37,10 @@ Infrastructure modules never depend on `app-service` or on each other.
 
 ### 1.4 Entry points
 
-- Expose HTTP only through `RouterFunction` (`RouterRest`) and handler classes (`Handler`).
+- Expose HTTP only through `RouterFunction` (`RouterRest`) and one handler class per resource (`FranchiseHandler`, `ProductHandler`, …).
 - The handler parses the request, calls one use case, and builds the response. It holds no business rules.
 - Request/response DTOs are Java `record`s and live in the entry point. Map them to domain models before calling the use case.
+- A response DTO builds itself from its domain model with a static factory, `<Name>Response.from(<Model>)` (for example `ProductResponse.from(Product)`). Handlers call it instead of keeping private `toResponse` methods, so a mapping is written once and shared without one handler depending on another. Map a domain collection in the handler with `Flux.fromIterable(...).map(<Name>Response::from)`, not inside the DTO.
 - Map domain exceptions to HTTP status codes in the entry point, with reactive error operators.
 
 ## 2. Reactive programming (Spring WebFlux)
@@ -77,6 +78,7 @@ Use the Resilience4j Reactor operators (`transformDeferred(CircuitBreakerOperato
 - Use `jakarta.*`; `javax.*` is not allowed.
 - Inject by constructor in every bean: `@RequiredArgsConstructor` + `final` fields.
 - Choose Lombok annotations on purpose: `@Builder(toBuilder = true)` on domain entity records, `@Value` for immutable value classes that cannot be records. Use `@Data` only where mutability is required.
+- Create records and other data objects with their Lombok `@Builder` (`ProductResponse.builder().id(...).name(...).build()`) rather than `new` with positional arguments, so each value is named at the call site. Add `@Builder` to a record that lacks one instead of falling back to its constructor. Use `new` only where a builder is not possible, such as JDK or third-party types and exceptions.
 - Order members inside a class: constants, fields, constructors, public methods, then private methods.
 - Write all code in English: classes, methods, variables and technical comments.
 - Name every literal that carries meaning (paths, path variable names, code prefixes) as a `private static final` constant. Share constants between classes in one constants class, such as `ApiPaths` for routes.
