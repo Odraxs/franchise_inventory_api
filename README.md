@@ -33,3 +33,35 @@ cp .env.example .env
 | `DB_NAME` | `franchise_inventory` | Database name |
 | `DB_USERNAME` / `DB_PASSWORD` | `postgres` / `postgres` | Database credentials |
 | `DB_HOST_PORT` | `5436` | Host port where PostgreSQL is published |
+
+## 2. Run
+
+Pick one option. In both, Flyway creates the schema on startup, so the database needs no manual setup.
+
+### Option 1: everything in Docker (recommended)
+
+```bash
+docker compose up --build -d
+```
+
+This builds the app image (the first build downloads Gradle and the dependencies, so it takes a few minutes), starts PostgreSQL, waits until it is healthy, and starts the app. Check that the app is up:
+
+```bash
+curl -s http://localhost:8080/actuator/health
+# {"groups":["liveness","readiness"],"status":"UP"}
+```
+
+Follow the logs with `docker compose logs -f app`. Stop everything with `docker compose down`; add `-v` to also delete the database volume.
+
+### Option 2: PostgreSQL in Docker, app with Gradle
+
+Use this while developing: the app starts from source with no image build.
+
+```bash
+docker compose up -d postgres
+ADAPTERS_R2DBC_PORT=5436 ./gradlew :app-service:bootRun --args='--spring.profiles.active=local'
+```
+
+The `local` profile (`applications/app-service/src/main/resources/application-local.yaml`) points to `localhost:5435`, the port of a PostgreSQL server installed on the host. `ADAPTERS_R2DBC_PORT=5436` points it to the Docker container instead (use your `DB_HOST_PORT` if you changed it). If you changed the database name or credentials in `.env`, also set `ADAPTERS_R2DBC_DATABASE`, `ADAPTERS_R2DBC_USERNAME` and `ADAPTERS_R2DBC_PASSWORD`.
+
+The app is ready when the log shows `Started MainApplication`. Stop it with `Ctrl+C` and the database with `docker compose down`.
