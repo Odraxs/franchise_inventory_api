@@ -37,4 +37,14 @@ class ConfigTest extends ApiTestBase {
                 .expectHeader().valueEquals("Referrer-Policy", "strict-origin-when-cross-origin");
     }
 
+    @Test
+    void swaggerUiPathsAllowDataImagesAndInlineStyles() {
+        webTestClient.get()
+                .uri("/swagger-ui/index.html")
+                .exchange()
+                .expectHeader().valueEquals("Content-Security-Policy",
+                        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
+                                + "frame-ancestors 'self'; form-action 'self'");
+    }
+
 }
