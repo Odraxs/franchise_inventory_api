@@ -17,6 +17,11 @@ spring:
     user: "${adapters.r2dbc.username}"
     password: "${adapters.r2dbc.password}"
     schemas: "${adapters.r2dbc.schema:public}"
+# The routes are RouterFunctions, so the UI loads the hand-written static/openapi.yaml, not the generated spec
+springdoc:
+  swagger-ui:
+    path: "/swagger-ui.html"
+    url: "/openapi.yaml"
 management:
   endpoints:
     web:
