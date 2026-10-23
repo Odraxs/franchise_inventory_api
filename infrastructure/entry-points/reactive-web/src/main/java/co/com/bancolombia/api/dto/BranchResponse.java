@@ -9,6 +9,6 @@ import java.util.UUID;
 public record BranchResponse(UUID id, String name) {
 
     public static BranchResponse from(Branch branch) {
-        return new BranchResponse(branch.id(), branch.name());
+        return BranchResponse.builder().id(branch.id()).name(branch.name()).build();
     }
 }

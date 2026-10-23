@@ -78,6 +78,7 @@ Use the Resilience4j Reactor operators (`transformDeferred(CircuitBreakerOperato
 - Use `jakarta.*`; `javax.*` is not allowed.
 - Inject by constructor in every bean: `@RequiredArgsConstructor` + `final` fields.
 - Choose Lombok annotations on purpose: `@Builder(toBuilder = true)` on domain entity records, `@Value` for immutable value classes that cannot be records. Use `@Data` only where mutability is required.
+- Create records and other data objects with their Lombok `@Builder` (`ProductResponse.builder().id(...).name(...).build()`) rather than `new` with positional arguments, so each value is named at the call site. Add `@Builder` to a record that lacks one instead of falling back to its constructor. Use `new` only where a builder is not possible, such as JDK or third-party types and exceptions.
 - Order members inside a class: constants, fields, constructors, public methods, then private methods.
 - Write all code in English: classes, methods, variables and technical comments.
 - Name every literal that carries meaning (paths, path variable names, code prefixes) as a `private static final` constant. Share constants between classes in one constants class, such as `ApiPaths` for routes.

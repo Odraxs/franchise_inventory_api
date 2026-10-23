@@ -9,6 +9,6 @@ import java.util.UUID;
 public record ProductResponse(UUID id, String name, Integer stock) {
 
     public static ProductResponse from(Product product) {
-        return new ProductResponse(product.id(), product.name(), product.stock());
+        return ProductResponse.builder().id(product.id()).name(product.name()).stock(product.stock()).build();
     }
 }
