@@ -34,7 +34,7 @@ public class DatabaseResilience {
     private final TimeLimiterRegistry timeLimiterRegistry;
     private final RetryRegistry retryRegistry;
 
-    /** For a read or the soft delete: safe to repeat, so a Timeout is retried too. */
+    /** For a read, the soft delete or a rename: safe to repeat, so a Timeout is retried too. */
     public <T> Mono<T> idempotent(Mono<T> call) {
         return protect(call, DATABASE_IDEMPOTENT);
     }

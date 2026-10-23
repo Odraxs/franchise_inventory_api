@@ -73,6 +73,35 @@ class FranchiseRepositoryAdapterTest {
     }
 
     @Test
+    void renameEmitsTheUpdatedFranchise() {
+        UUID id = UUID.randomUUID();
+        when(repository.rename(id, "Nequi")).thenReturn(Mono.just(new FranchiseData(id, "Nequi")));
+
+        StepVerifier.create(adapter.rename(id, "Nequi"))
+                .expectNextMatches(franchise -> id.equals(franchise.id()) && "Nequi".equals(franchise.name()))
+                .verifyComplete();
+    }
+
+    @Test
+    void renameEmitsEmptyWhenNoRowMatches() {
+        UUID id = UUID.randomUUID();
+        when(repository.rename(id, "Nequi")).thenReturn(Mono.empty());
+
+        StepVerifier.create(adapter.rename(id, "Nequi")).verifyComplete();
+    }
+
+    @Test
+    void renameMapsDuplicateKeyToDuplicateFranchiseName() {
+        UUID id = UUID.randomUUID();
+        when(repository.rename(id, "Nequi")).thenReturn(Mono.error(new DuplicateKeyException("uq_franchise_name")));
+
+        StepVerifier.create(adapter.rename(id, "Nequi"))
+                .expectErrorMatches(error -> error instanceof BusinessException exception
+                        && exception.getErrorCode() == ErrorCode.DUPLICATE_FRANCHISE_NAME)
+                .verify();
+    }
+
+    @Test
     void existsByIdEmitsTheRepositoryAnswer() {
         UUID id = UUID.randomUUID();
         when(repository.existsById(id)).thenReturn(Mono.just(true));
@@ -126,6 +155,54 @@ class FranchiseRepositoryAdapterTest {
                 .expectErrorMatches(error -> error instanceof TechnicalException exception
                         && exception.getErrorCode() == TechnicalException.ErrorCode.DATABASE_UNAVAILABLE)
                 .verify();
+    }
+
+    @Test
+    void renameIsRetriedAfterATimeoutAndRecovers() {
+        UUID id = UUID.randomUUID();
+        AtomicInteger subscriptions = new AtomicInteger();
+        Iterator<Mono<FranchiseData>> answers =
+                List.of(Mono.<FranchiseData>never(), Mono.just(new FranchiseData(id, "Nequi"))).iterator();
+        when(repository.rename(id, "Nequi")).thenReturn(Mono.defer(answers::next)
+                .doOnSubscribe(subscription -> subscriptions.incrementAndGet()));
+
+        StepVerifier.withVirtualTime(() -> adapter.rename(id, "Nequi"))
+                .expectSubscription()
+                .thenAwait(DatabaseResilienceFixture.TIMEOUT)
+                .thenAwait(ALL_BACKOFFS)
+                .expectNextMatches(franchise -> id.equals(franchise.id()) && "Nequi".equals(franchise.name()))
+                .verifyComplete();
+        assertThat(subscriptions).hasValue(2);
+    }
+
+    @Test
+    void stalledRenameFailsWithDatabaseUnavailable() {
+        UUID id = UUID.randomUUID();
+        PublisherProbe<FranchiseData> stalled = PublisherProbe.of(Mono.never());
+        when(repository.rename(id, "Nequi")).thenReturn(stalled.mono());
+
+        StepVerifier.withVirtualTime(() -> adapter.rename(id, "Nequi"))
+                .expectSubscription()
+                .thenAwait(DatabaseResilienceFixture.TIMEOUT.multipliedBy(DatabaseResilienceFixture.MAX_ATTEMPTS)
+                        .plus(ALL_BACKOFFS))
+                .expectErrorMatches(error -> error instanceof TechnicalException exception
+                        && exception.getErrorCode() == TechnicalException.ErrorCode.DATABASE_UNAVAILABLE)
+                .verify();
+        // The retries count in the breaker, so it can open before the last attempt
+        assertThat(stalled.subscribeCount()).isBetween(2L, (long) DatabaseResilienceFixture.MAX_ATTEMPTS);
+    }
+
+    @Test
+    void duplicateNameOnRenameIsTriedOnceAndMapsToDuplicateFranchiseName() {
+        UUID id = UUID.randomUUID();
+        PublisherProbe<FranchiseData> duplicate = PublisherProbe.of(Mono.error(new DuplicateKeyException("uq_franchise_name")));
+        when(repository.rename(id, "Nequi")).thenReturn(duplicate.mono());
+
+        StepVerifier.create(adapter.rename(id, "Nequi"))
+                .expectErrorMatches(error -> error instanceof BusinessException exception
+                        && exception.getErrorCode() == ErrorCode.DUPLICATE_FRANCHISE_NAME)
+                .verify();
+        assertThat(duplicate.subscribeCount()).isEqualTo(1);
     }
 
     @Test
