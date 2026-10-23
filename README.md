@@ -66,7 +66,58 @@ The `local` profile (`applications/app-service/src/main/resources/application-lo
 
 The app is ready when the log shows `Started MainApplication`. Stop it with `Ctrl+C` and the database with `docker compose down`.
 
-## 3. Explore the API
+## 3. Authentication
+
+Every business route and `/actuator/prometheus` need HTTP Basic with the **API Credential** (a username and password) of the one trusted **Client**: the developer, the challenge evaluator, Postman or curl. These stay public, with no credentials:
+
+- `/actuator/health/**`, so the load balancer and container health checks work
+- CORS preflight (`OPTIONS`), so a browser can send the real authenticated request
+- the API docs: `/swagger-ui.html` and `/openapi.yaml`
+
+Authentication works the same in every profile, `local` included.
+
+### Local dev API Credential
+
+The `local` profile (`application-local.yaml`) and `docker-compose.yml` set a fixed dev pair. Use it only for local development:
+
+| Username | Password |
+|---|---|
+| `inventory-client` | `local-dev-only-api-credential-do-not-use-in-aws` |
+
+Send it with `curl -u`:
+
+```bash
+curl -s -u inventory-client:local-dev-only-api-credential-do-not-use-in-aws \
+  -X POST http://localhost:8080/franchises \
+  -H 'Content-Type: application/json' -d '{"name":"Pizza Palace"}'
+# {"id":"…","name":"Pizza Palace"}
+```
+
+Without credentials, or with a wrong username, wrong password or malformed `Authorization` header, every business route answers the same `401` before it looks at the body:
+
+```bash
+curl -si -X POST http://localhost:8080/franchises \
+  -H 'Content-Type: application/json' -d '{"name":"Pizza Palace"}'
+# HTTP/1.1 401 Unauthorized
+# WWW-Authenticate: Basic realm="franchise-inventory"
+# …
+# {"code":"UNAUTHORIZED","message":"A valid API credential is required, sent with HTTP Basic"}
+```
+
+In Swagger UI, click **Authorize** and enter the same pair to use "Try it out".
+
+### API Credential in AWS
+
+In the `aws` profile, the **API Credential** comes from the **API Secret**, a Secrets Manager secret that the app reads at startup. The credential never goes in code, tfvars or container environment variables. Terraform will create the secret with a random password of 32 bytes or more. That wiring (the secret, the task role permission to read it and its import in the `aws` profile) is not built yet; it comes with the AWS deployment work. The app refuses to start when the username or password is blank, so it never runs without a credential.
+
+### Security trade-offs
+
+- **Plain HTTP in `dev`.** In the `dev` environment the API listens on plain HTTP (port 80), so the credential travels unencrypted: HTTP Basic is only base64. This risk is accepted because `dev` holds throwaway data. `prod` requires HTTPS (an ACM certificate on the load balancer, with port 80 redirecting to 443).
+- **Rotation by hand.** To rotate the credential, update the **API Secret**, then force a new ECS deployment (`aws ecs update-service --cluster <cluster> --service <service> --force-new-deployment`). Running tasks read the secret only at startup, so they keep the old credential until the new ones replace them. There is no automatic rotation, and the app accepts only one password at a time.
+- **No lockout.** Failed attempts do not lock the **Client** out. The password is a 256-bit random value that cannot be guessed, and locking out the only **Client** would let any attacker take the API down. Rate limiting is a later option at the edge (AWS WAF on the load balancer); it is not built yet.
+- **No authorization (roles) yet.** Any authenticated **Client** can call every route. Roles come when a second **Client** with different needs appears (another service, a read-only dashboard) or when end users are introduced: for example a `READER` that can only get the top-stock report, a `WRITER` for every change, and `403 FORBIDDEN` for a **Client** without the needed role.
+
+## 4. Explore the API
 
 With the app running:
 
@@ -74,7 +125,7 @@ With the app running:
 - OpenAPI spec: <http://localhost:8080/openapi.yaml> (source: `infrastructure/entry-points/reactive-web/src/main/resources/static/openapi.yaml`)
 - Health: <http://localhost:8080/actuator/health>
 
-The API has no authentication.
+Every route below needs the **API Credential** (see [Authentication](#3-authentication)).
 
 | Method | Path | Does |
 |---|---|---|
@@ -156,6 +207,7 @@ Every error answers with a JSON body `{"code": "...", "message": "..."}`. The co
 
 | Code | Status | Example |
 |---|---|---|
+| `UNAUTHORIZED` | 401 | Missing, wrong or malformed **API Credential** (see [Authentication](#3-authentication)) |
 | `INVALID_*` | 400 | `INVALID_REQUEST` (malformed body, wrong field type, malformed UUID), `INVALID_FRANCHISE_NAME`, `INVALID_STOCK` |
 | `*_NOT_FOUND` | 404 | `FRANCHISE_NOT_FOUND`, `BRANCH_NOT_FOUND`, `PRODUCT_NOT_FOUND` |
 | `DUPLICATE_*` | 409 | `DUPLICATE_BRANCH_NAME` (names are unique case-insensitively) |
@@ -163,7 +215,7 @@ Every error answers with a JSON body `{"code": "...", "message": "..."}`. The co
 
 Names are trimmed and must have 1 to 100 characters. Stock is an integer from 0 to 2147483647. The Swagger UI lists the exact codes of each endpoint.
 
-## 4. Tests
+## 5. Tests
 
 The tests need only the JDK; they do not use the database.
 
@@ -174,7 +226,7 @@ The tests need only the JDK; they do not use the database.
 - `vs` (`validateStructure`) checks the layer dependency rule of the clean architecture.
 - `test` runs the unit tests of every module, including `ArchitectureTest` in `app-service`. Test reports land in `<module>/build/reports/tests/test/index.html`.
 
-## 5. Project structure
+## 6. Project structure
 
 Dependencies point inward only: `app-service` → `infrastructure` → `usecase` → `model`.
 
