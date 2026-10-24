@@ -1,0 +1,126 @@
+name: Deploy
+
+# Manual only: deploys the selected commit of main to dev.
+# Setup (GitHub Environment, secrets, variables): deployment/terraform/README.md, "CD pipeline".
+on:
+  workflow_dispatch:
+
+# One deploy at a time. Never cancel a running apply: it would leave the state locked.
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to dev
+    # Second guard next to the branch rule of the dev GitHub Environment
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: dev
+      url: ${{ steps.outputs.outputs.alb_url }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      TF_IN_AUTOMATION: '1'
+      TF_INPUT: '0'
+      # dev has enable_budget = true, so the variable validation needs it
+      TF_VAR_budget_alert_email: ${{ secrets.TF_VAR_BUDGET_ALERT_EMAIL }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # No wrapper, so $(terraform output -raw ...) returns only the value
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.11.4
+          terraform_wrapper: false
+
+      # Runs before terraform init, so the publish script sees a clean working tree.
+      # Same Image Tag as the script. A re-run of the same commit reuses the pushed image,
+      # because tags are immutable and the script refuses an existing tag.
+      - name: Publish image
+        id: image
+        run: |
+          image_tag="$(git rev-parse --short=12 HEAD)"
+          if aws ecr describe-images --repository-name franchise-inventory-dev-api \
+            --image-ids imageTag="${image_tag}" >/dev/null 2>&1; then
+            echo "Image Tag ${image_tag} already exists in ECR, reusing it."
+          else
+            image_tag="$(deployment/scripts/publish-image.sh dev)"
+          fi
+          echo "tag=${image_tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Terraform init
+        working-directory: deployment/terraform
+        run: |
+          terraform init \
+            -backend-config=envs/dev.backend.hcl \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+
+      - name: Terraform plan
+        working-directory: deployment/terraform
+        run: terraform plan -var-file=envs/dev.tfvars -var image_tag="${{ steps.image.outputs.tag }}" -out=tfplan
+
+      - name: Terraform apply
+        working-directory: deployment/terraform
+        run: terraform apply tfplan
+
+      - name: Read outputs
+        id: outputs
+        working-directory: deployment/terraform
+        run: |
+          {
+            echo "alb_url=$(terraform output -raw alb_url)"
+            echo "cluster=$(terraform output -raw ecs_cluster_name)"
+            echo "service=$(terraform output -raw ecs_service_name)"
+          } >> "$GITHUB_OUTPUT"
+
+      # apply returns when ECS accepts the deployment; this waits for healthy tasks.
+      # A failed deployment is rolled back by the circuit breaker and this step times out.
+      - name: Wait for the ECS service
+        run: |
+          aws ecs wait services-stable \
+            --cluster "${{ steps.outputs.outputs.cluster }}" \
+            --services "${{ steps.outputs.outputs.service }}"
+
+      # A call without credentials must get 401. It is rejected before the body is read,
+      # so it creates nothing. A new ALB DNS name can take a few minutes to resolve.
+      - name: Smoke check
+        env:
+          ALB_URL: ${{ steps.outputs.outputs.alb_url }}
+        run: |
+          for attempt in $(seq 1 10); do
+            status="$(curl -s -o /dev/null -w '%{http_code}' -X POST "${ALB_URL}/franchises" \
+              -H 'Content-Type: application/json' -d '{"name":"Smoke Check"}' || true)"
+            if [[ "${status}" == "401" ]]; then
+              echo "Smoke check passed: ${ALB_URL}/franchises answered 401 without credentials."
+              exit 0
+            fi
+            echo "Attempt ${attempt}: got HTTP ${status}, expected 401. Retrying in 30 s."
+            sleep 30
+          done
+          echo "::error::Smoke check failed: ${ALB_URL}/franchises never answered 401."
+          exit 1
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "### Deploy to dev"
+            echo "- Image Tag: \`${{ steps.image.outputs.tag }}\`"
+            echo "- API: ${{ steps.outputs.outputs.alb_url }}"
+          } >> "$GITHUB_STEP_SUMMARY"
