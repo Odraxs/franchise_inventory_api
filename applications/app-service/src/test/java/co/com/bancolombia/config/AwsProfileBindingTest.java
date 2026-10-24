@@ -21,8 +21,8 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -33,7 +33,9 @@ import static org.mockito.Mockito.when;
  *   <li>The Secrets Manager import stays in place but is turned off, and a fake {@code db.*} property
  *   source stands in for the DB Secret.</li>
  *   <li>The import runs for real against a fake {@link SecretsManagerClient} in the bootstrap registry, so
- *   the import string itself (both secrets, each with its prefix) is tested.</li>
+ *   the import string itself (both secrets, each with its prefix) is tested. Only
+ *   {@link FakeSecretsManagerConfig} touches the sync client: ArchitectureTest Rule_1.5 exempts *Config
+ *   classes, and Spring Cloud AWS's config import accepts no async client.</li>
  * </ul>
  */
 class AwsProfileBindingTest {
@@ -103,7 +105,7 @@ class AwsProfileBindingTest {
 
     @Test
     void awsProfileBindsTheApiCredentialFromTheApiSecret() {
-        try (ConfigurableApplicationContext context = startAwsProfileWith(fakeSecretsManager())) {
+        try (ConfigurableApplicationContext context = startAwsProfileWith(new FakeSecretsManagerConfig(FAKE_SECRETS))) {
             ApiCredentialProperties credential = Binder.get(context.getEnvironment())
                     .bind("security.client", ApiCredentialProperties.class)
                     .get();
@@ -115,7 +117,7 @@ class AwsProfileBindingTest {
 
     @Test
     void awsProfileImportsTheDbSecretAndTheApiSecretInOneImport() {
-        SecretsManagerClient secretsManager = fakeSecretsManager();
+        FakeSecretsManagerConfig secretsManager = new FakeSecretsManagerConfig(FAKE_SECRETS);
 
         try (ConfigurableApplicationContext context = startAwsProfileWith(secretsManager)) {
             PostgresqlConnectionProperties properties = Binder.get(context.getEnvironment())
@@ -126,10 +128,7 @@ class AwsProfileBindingTest {
             assertThat(properties.password()).isEqualTo(DB_PASSWORD);
         }
 
-        ArgumentCaptor<GetSecretValueRequest> requests = ArgumentCaptor.forClass(GetSecretValueRequest.class);
-        verify(secretsManager, times(2)).getSecretValue(requests.capture());
-        assertThat(requests.getAllValues())
-                .extracting(GetSecretValueRequest::secretId)
+        assertThat(secretsManager.requestedSecretIds())
                 .containsExactlyInAnyOrder(FAKE_DB_SECRET_NAME, FAKE_API_SECRET_NAME);
     }
 
@@ -139,11 +138,9 @@ class AwsProfileBindingTest {
         return application.run(DISABLE_SECRETS_MANAGER, DB_SECRET_NAME_ARG, API_SECRET_NAME_ARG);
     }
 
-    /** Spring Cloud AWS uses a SecretsManagerClient that is already in the bootstrap registry instead of building one. */
-    private static ConfigurableApplicationContext startAwsProfileWith(SecretsManagerClient secretsManager) {
+    private static ConfigurableApplicationContext startAwsProfileWith(FakeSecretsManagerConfig secretsManager) {
         SpringApplication application = awsProfileApplication();
-        application.addBootstrapRegistryInitializer(registry ->
-                registry.register(SecretsManagerClient.class, bootstrapContext -> secretsManager));
+        secretsManager.registerIn(application);
         return application.run(DB_SECRET_NAME_ARG, API_SECRET_NAME_ARG);
     }
 
@@ -154,17 +151,34 @@ class AwsProfileBindingTest {
         return application;
     }
 
-    /** Answers GetSecretValue with the JSON of the requested fake secret. */
-    private static SecretsManagerClient fakeSecretsManager() {
-        SecretsManagerClient secretsManager = mock(SecretsManagerClient.class);
-        when(secretsManager.getSecretValue(any(GetSecretValueRequest.class))).thenAnswer(invocation -> {
-            GetSecretValueRequest request = invocation.getArgument(0);
-            return GetSecretValueResponse.builder()
-                    .name(request.secretId())
-                    .secretString(FAKE_SECRETS.get(request.secretId()))
-                    .build();
-        });
-        return secretsManager;
+    /**
+     * Puts a fake SecretsManagerClient in the bootstrap registry; Spring Cloud AWS uses it instead of building one.
+     * It answers GetSecretValue with the JSON of the requested fake secret.
+     */
+    static class FakeSecretsManagerConfig {
+
+        private final SecretsManagerClient client = mock(SecretsManagerClient.class);
+
+        FakeSecretsManagerConfig(Map<String, String> secrets) {
+            when(client.getSecretValue(any(GetSecretValueRequest.class))).thenAnswer(invocation -> {
+                GetSecretValueRequest request = invocation.getArgument(0);
+                return GetSecretValueResponse.builder()
+                        .name(request.secretId())
+                        .secretString(secrets.get(request.secretId()))
+                        .build();
+            });
+        }
+
+        void registerIn(SpringApplication application) {
+            application.addBootstrapRegistryInitializer(registry ->
+                    registry.register(SecretsManagerClient.class, bootstrapContext -> client));
+        }
+
+        List<String> requestedSecretIds() {
+            ArgumentCaptor<GetSecretValueRequest> requests = ArgumentCaptor.forClass(GetSecretValueRequest.class);
+            verify(client, atLeastOnce()).getSecretValue(requests.capture());
+            return requests.getAllValues().stream().map(GetSecretValueRequest::secretId).toList();
+        }
     }
 
     record CorsOrigins(List<String> values) {
