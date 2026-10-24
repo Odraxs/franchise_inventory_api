@@ -5,6 +5,7 @@ import co.com.bancolombia.model.exception.BusinessException;
 import co.com.bancolombia.model.exception.BusinessException.ErrorCode;
 import co.com.bancolombia.model.franchise.gateways.FranchiseGateway;
 import co.com.bancolombia.model.product.Product;
+import co.com.bancolombia.model.product.UpdateProductStockCommand;
 import co.com.bancolombia.model.product.gateways.ProductGateway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,7 +50,7 @@ class UpdateProductStockUseCaseTest {
         when(branchGateway.existsByIdAndFranchiseId(BRANCH_ID, FRANCHISE_ID)).thenReturn(Mono.just(true));
         when(productGateway.updateStock(PRODUCT_ID, BRANCH_ID, 0)).thenReturn(Mono.just(updated));
 
-        StepVerifier.create(useCase.execute(FRANCHISE_ID, BRANCH_ID, PRODUCT_ID, 0))
+        StepVerifier.create(useCase.execute(command(0)))
                 .expectNext(updated)
                 .verifyComplete();
     }
@@ -60,7 +61,7 @@ class UpdateProductStockUseCaseTest {
         when(branchGateway.existsByIdAndFranchiseId(BRANCH_ID, FRANCHISE_ID)).thenReturn(Mono.just(true));
         when(productGateway.updateStock(PRODUCT_ID, BRANCH_ID, 5)).thenReturn(Mono.empty());
 
-        StepVerifier.create(useCase.execute(FRANCHISE_ID, BRANCH_ID, PRODUCT_ID, 5))
+        StepVerifier.create(useCase.execute(command(5)))
                 .expectErrorMatches(error -> hasCode(error, ErrorCode.PRODUCT_NOT_FOUND))
                 .verify();
     }
@@ -69,7 +70,7 @@ class UpdateProductStockUseCaseTest {
     void failsWithFranchiseNotFoundWithoutUpdatingWhenTheFranchiseDoesNotExist() {
         when(franchiseGateway.existsById(FRANCHISE_ID)).thenReturn(Mono.just(false));
 
-        StepVerifier.create(useCase.execute(FRANCHISE_ID, BRANCH_ID, PRODUCT_ID, 5))
+        StepVerifier.create(useCase.execute(command(5)))
                 .expectErrorMatches(error -> hasCode(error, ErrorCode.FRANCHISE_NOT_FOUND))
                 .verify();
         verifyNoInteractions(branchGateway, productGateway);
@@ -80,21 +81,15 @@ class UpdateProductStockUseCaseTest {
         when(franchiseGateway.existsById(FRANCHISE_ID)).thenReturn(Mono.just(true));
         when(branchGateway.existsByIdAndFranchiseId(BRANCH_ID, FRANCHISE_ID)).thenReturn(Mono.just(false));
 
-        StepVerifier.create(useCase.execute(FRANCHISE_ID, BRANCH_ID, PRODUCT_ID, 5))
+        StepVerifier.create(useCase.execute(command(5)))
                 .expectErrorMatches(error -> hasCode(error, ErrorCode.BRANCH_NOT_FOUND))
                 .verify();
         verifyNoInteractions(productGateway);
     }
 
-    @Test
-    void failsWithInvalidStockWithoutCallingAnyGateway() {
-        StepVerifier.create(useCase.execute(FRANCHISE_ID, BRANCH_ID, PRODUCT_ID, -1))
-                .expectErrorMatches(error -> hasCode(error, ErrorCode.INVALID_STOCK))
-                .verify();
-        StepVerifier.create(useCase.execute(FRANCHISE_ID, BRANCH_ID, PRODUCT_ID, null))
-                .expectErrorMatches(error -> hasCode(error, ErrorCode.INVALID_STOCK))
-                .verify();
-        verifyNoInteractions(franchiseGateway, branchGateway, productGateway);
+    private static UpdateProductStockCommand command(int stock) {
+        return UpdateProductStockCommand.builder().franchiseId(FRANCHISE_ID).branchId(BRANCH_ID).productId(PRODUCT_ID)
+                .stock(stock).build();
     }
 
     private static boolean hasCode(Throwable error, ErrorCode code) {

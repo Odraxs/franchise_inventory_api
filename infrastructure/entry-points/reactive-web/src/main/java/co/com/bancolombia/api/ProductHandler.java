@@ -7,6 +7,8 @@ import co.com.bancolombia.api.dto.UpdateStockRequest;
 import co.com.bancolombia.model.exception.BusinessException;
 import co.com.bancolombia.model.exception.BusinessException.ErrorCode;
 import co.com.bancolombia.model.product.Product;
+import co.com.bancolombia.model.product.RenameProductCommand;
+import co.com.bancolombia.model.product.UpdateProductStockCommand;
 import co.com.bancolombia.usecase.addproduct.AddProductUseCase;
 import co.com.bancolombia.usecase.deleteproduct.DeleteProductUseCase;
 import co.com.bancolombia.usecase.renameproduct.RenameProductUseCase;
@@ -49,8 +51,9 @@ public class ProductHandler {
                 .flatMap(ids -> RequestReader.readBody(serverRequest, RenameProductRequest.class)
                         .filter(request -> !request.hasStock())
                         .switchIfEmpty(Mono.error(() -> new BusinessException(ErrorCode.INVALID_PRODUCT_UPDATE)))
-                        .flatMap(request -> renameProductUseCase.execute(ids.getT1(), ids.getT2(), ids.getT3(),
-                                request.name())))
+                        .map(request -> RenameProductCommand.builder().franchiseId(ids.getT1())
+                                .branchId(ids.getT2()).productId(ids.getT3()).name(request.name()).build()))
+                .flatMap(renameProductUseCase::execute)
                 .flatMap(product -> ServerResponse.ok().bodyValue(ProductResponse.from(product)))
                 .transform(ErrorResponses::handle);
     }
@@ -65,8 +68,9 @@ public class ProductHandler {
     public Mono<ServerResponse> updateProductStock(ServerRequest serverRequest) {
         return parseProductIds(serverRequest)
                 .flatMap(ids -> RequestReader.readBody(serverRequest, UpdateStockRequest.class)
-                        .flatMap(request -> updateProductStockUseCase.execute(ids.getT1(), ids.getT2(), ids.getT3(),
-                                request.stock())))
+                        .map(request -> UpdateProductStockCommand.builder().franchiseId(ids.getT1())
+                                .branchId(ids.getT2()).productId(ids.getT3()).stock(request.stock()).build()))
+                .flatMap(updateProductStockUseCase::execute)
                 .flatMap(product -> ServerResponse.ok().bodyValue(ProductResponse.from(product)))
                 .transform(ErrorResponses::handle);
     }
