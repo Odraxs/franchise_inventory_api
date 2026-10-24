@@ -428,10 +428,14 @@ paths:
       operationId: getTopStockProducts
       summary: Report the product with the most stock in each branch
       description: |
-        One entry per branch of the franchise, sorted by branch name ignoring case. On a stock tie the oldest product wins.
-        A branch with no products has `topProduct: null`. A franchise with no branches has an empty `branches` list.
+        One page of the branches of the franchise, each with its top-stock product. Branches are sorted by name ignoring
+        case, then by id, so the order is stable across pages. On a stock tie the oldest product wins.
+        A branch with no products has `topProduct: null`. A franchise with no branches, or a page past the last branch,
+        has an empty `branches` list; the page metadata still counts every branch of the franchise.
       parameters:
         - $ref: '#/components/parameters/FranchiseId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
       responses:
         '200':
           description: Top-stock report
@@ -441,6 +445,10 @@ paths:
                 $ref: '#/components/schemas/TopStockReportResponse'
               example:
                 franchiseId: 3f2b8c1e-5d4a-4e7b-9c1f-2a6d8e0b4c71
+                page: 0
+                size: 20
+                totalElements: 2
+                totalPages: 1
                 branches:
                   - branchId: 8a1d4f6b-2c3e-4b5a-9d7f-1e0c2b4a6d83
                     branchName: Downtown
@@ -452,7 +460,14 @@ paths:
                     branchName: Uptown
                     topProduct: null
         '400':
-          $ref: '#/components/responses/InvalidRequest'
+          description: Malformed franchise id, or a page or size that is not an integer or is out of range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                INVALID_REQUEST:
+                  $ref: '#/components/examples/InvalidRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -513,6 +528,29 @@ components:
         type: string
         format: uuid
       example: c4e9a2d7-6b1f-4a3c-8e5d-0f7b9a1c3e25
+    Page:
+      name: page
+      in: query
+      required: false
+      description: 0-based page number. A negative or non-integer value answers 400 `INVALID_REQUEST`.
+      schema:
+        type: integer
+        format: int32
+        minimum: 0
+        default: 0
+      example: 0
+    Size:
+      name: size
+      in: query
+      required: false
+      description: Branches per page, from 1 to 100. Any other or non-integer value answers 400 `INVALID_REQUEST`.
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 100
+        default: 20
+      example: 20
 
   schemas:
     Name:
@@ -615,15 +653,32 @@ components:
             - type: 'null'
     TopStockReportResponse:
       type: object
-      required: [franchiseId, branches]
+      required: [franchiseId, branches, page, size, totalElements, totalPages]
       properties:
         franchiseId:
           type: string
           format: uuid
         branches:
           type: array
+          description: The branches of this page, sorted by name ignoring case, then by id.
           items:
             $ref: '#/components/schemas/BranchTopStockResponse'
+        page:
+          type: integer
+          format: int32
+          description: The 0-based number of this page.
+        size:
+          type: integer
+          format: int32
+          description: The requested page size; the last page can hold fewer branches.
+        totalElements:
+          type: integer
+          format: int64
+          description: The number of branches of the franchise.
+        totalPages:
+          type: integer
+          format: int32
+          description: The number of pages of this size; 0 when the franchise has no branches.
     ErrorResponse:
       type: object
       required: [code, message]
@@ -636,7 +691,7 @@ components:
 
   examples:
     InvalidRequest:
-      summary: Malformed body, wrong field type or malformed UUID
+      summary: Malformed body, wrong field type, malformed UUID or invalid page parameters
       value:
         code: INVALID_REQUEST
         message: The request is malformed or has a field of the wrong type

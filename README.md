@@ -137,7 +137,7 @@ Every route below needs the **API Credential** (see [Authentication](#3-authenti
 | `PATCH` | `/franchises/{franchiseId}/branches/{branchId}/products/{id}` | Rename a product |
 | `DELETE` | `/franchises/{franchiseId}/branches/{branchId}/products/{id}` | Delete a product (soft delete) |
 | `PATCH` | `/franchises/{franchiseId}/branches/{branchId}/products/{id}/stock` | Update the stock of a product |
-| `GET` | `/franchises/{franchiseId}/top-stock-products` | Report the product with the most stock in each branch |
+| `GET` | `/franchises/{franchiseId}/top-stock-products?page=0&size=20` | Report the product with the most stock in each branch, one page of branches at a time |
 
 ### Smoke test walkthrough
 
@@ -168,7 +168,7 @@ curl -s -u $CREDENTIAL -X PATCH $API/franchises/$FRANCHISE_ID/branches/$DOWNTOWN
   -H 'Content-Type: application/json' -d '{"stock":40}' | jq
 
 # Top-stock report (200): Cheeseburger tops Downtown, Uptown has no products
-curl -s -u $CREDENTIAL $API/franchises/$FRANCHISE_ID/top-stock-products | jq
+curl -s -u $CREDENTIAL "$API/franchises/$FRANCHISE_ID/top-stock-products?page=0&size=20" | jq
 ```
 
 The report looks like this (with your ids):
@@ -187,11 +187,17 @@ The report looks like this (with your ids):
       "branchName": "Uptown",
       "topProduct": null
     }
-  ]
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 2,
+  "totalPages": 1
 }
 ```
 
-To see the error contract, repeat a name in another case (`409`) or send a negative stock (`400`):
+The report is paginated: `page` is 0-based (default `0`) and `size` takes 1 to 100 branches (default `20`); any other value answers `400 INVALID_REQUEST`. Branches are sorted by name ignoring case (then by id, so pages never overlap), and a page past the last branch has an empty `branches` list. `totalElements` counts every branch of the franchise.
+
+To see the error contract, repeat a name in another case (`409`), send a negative stock (`400`) or ask for a page too large (`400`):
 
 ```bash
 curl -s -u $CREDENTIAL -X POST $API/franchises -H 'Content-Type: application/json' -d '{"name":"burger town"}'
@@ -200,6 +206,9 @@ curl -s -u $CREDENTIAL -X POST $API/franchises -H 'Content-Type: application/jso
 curl -s -u $CREDENTIAL -X PATCH $API/franchises/$FRANCHISE_ID/branches/$DOWNTOWN_ID/products/$BURGER_ID/stock \
   -H 'Content-Type: application/json' -d '{"stock":-1}'
 # {"code":"INVALID_STOCK","message":"The stock must be an integer from 0 to 2147483647"}
+
+curl -s -u $CREDENTIAL "$API/franchises/$FRANCHISE_ID/top-stock-products?size=101"
+# {"code":"INVALID_REQUEST","message":"The request is malformed or has a field of the wrong type"}
 ```
 
 ### Import the requests into Postman, Insomnia or Bruno

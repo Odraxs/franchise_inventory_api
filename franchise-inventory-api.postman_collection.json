@@ -443,6 +443,13 @@
                   "const body = pm.response.json();",
                   "const branches = body.branches || [];",
                   "",
+                  "pm.test('first page of 20 holding both branches', () => {",
+                  "  pm.expect(body.page).to.eql(0);",
+                  "  pm.expect(body.size).to.eql(20);",
+                  "  pm.expect(body.totalElements).to.eql(2);",
+                  "  pm.expect(body.totalPages).to.eql(1);",
+                  "});",
+                  "",
                   "pm.test('one entry per branch', () => {",
                   "  pm.expect(branches).to.have.lengthOf(2);",
                   "});",
@@ -466,7 +473,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/franchises/:franchiseId/top-stock-products",
+              "raw": "{{baseUrl}}/franchises/:franchiseId/top-stock-products?page=0&size=20",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -475,6 +482,18 @@
                 ":franchiseId",
                 "top-stock-products"
               ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0",
+                  "description": "0-based page number (default 0)"
+                },
+                {
+                  "key": "size",
+                  "value": "20",
+                  "description": "Branches per page, 1 to 100 (default 20)"
+                }
+              ],
               "variable": [
                 {
                   "key": "franchiseId",
@@ -482,7 +501,7 @@
                 }
               ]
             },
-            "description": "Reports the top product of every branch (200). Cheeseburger (40) tops Downtown; Uptown has no products, so `topProduct` is null."
+            "description": "Reports the top product of every branch (200). Cheeseburger (40) tops Downtown; Uptown has no products, so `topProduct` is null. Reads the first page of 20 branches, sorted by name ignoring case."
           },
           "response": []
         }
@@ -753,7 +772,56 @@
           "response": []
         },
         {
-          "name": "2.6 Missing credential (401)",
+          "name": "2.6 Page size above the maximum (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "",
+                  "const body = pm.response.json();",
+                  "",
+                  "pm.test('INVALID_REQUEST', () => {",
+                  "  pm.expect(body.code).to.eql('INVALID_REQUEST');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/franchises/:franchiseId/top-stock-products?size=101",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "franchises",
+                ":franchiseId",
+                "top-stock-products"
+              ],
+              "query": [
+                {
+                  "key": "size",
+                  "value": "101"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "franchiseId",
+                  "value": "{{franchiseId}}"
+                }
+              ]
+            },
+            "description": "Asks for 101 branches per page; the maximum is 100 (400 `INVALID_REQUEST`)."
+          },
+          "response": []
+        },
+        {
+          "name": "2.7 Missing credential (401)",
           "event": [
             {
               "listen": "test",
