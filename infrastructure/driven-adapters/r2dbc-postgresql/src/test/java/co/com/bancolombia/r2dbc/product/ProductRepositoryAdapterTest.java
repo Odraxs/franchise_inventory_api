@@ -3,6 +3,7 @@ package co.com.bancolombia.r2dbc.product;
 import co.com.bancolombia.model.exception.BusinessException;
 import co.com.bancolombia.model.exception.BusinessException.ErrorCode;
 import co.com.bancolombia.model.exception.TechnicalException;
+import co.com.bancolombia.model.page.Page;
 import co.com.bancolombia.model.product.BranchTopStock;
 import co.com.bancolombia.model.product.Product;
 import co.com.bancolombia.r2dbc.resilience.DatabaseResilienceFixture;
@@ -33,6 +34,7 @@ class ProductRepositoryAdapterTest {
     /** Longer than every backoff of the fast test config. */
     private static final Duration ALL_BACKOFFS = Duration.ofSeconds(1);
     private static final UUID BRANCH_ID = UUID.randomUUID();
+    private static final Page FIRST_PAGE = Page.builder().number(0).size(20).build();
 
     @Mock
     private ProductDataRepository repository;
@@ -226,13 +228,28 @@ class ProductRepositoryAdapterTest {
     void findTopStockMapsEachBranchWithItsTopProduct() {
         UUID franchiseId = UUID.randomUUID();
         UUID productId = UUID.randomUUID();
-        when(repository.findTopStockByFranchiseId(franchiseId))
+        when(repository.findTopStockByFranchiseId(franchiseId, 20, 0L))
                 .thenReturn(Flux.just(new TopStockRow(BRANCH_ID, "Centro", productId, "Cola", 0)));
 
-        StepVerifier.create(adapter.findTopStockByFranchiseId(franchiseId))
+        StepVerifier.create(adapter.findTopStockByFranchiseId(franchiseId, FIRST_PAGE))
                 .expectNext(BranchTopStock.builder().branchId(BRANCH_ID).branchName("Centro")
                         .topProduct(Product.builder().id(productId).branchId(BRANCH_ID).name("Cola").stock(0).build())
                         .build())
+                .verifyComplete();
+    }
+
+    @Test
+    void findTopStockReadsThePageOffsetAndKeepsTheRepositoryOrder() {
+        UUID franchiseId = UUID.randomUUID();
+        UUID alphaId = UUID.randomUUID();
+        UUID bravoId = UUID.randomUUID();
+        when(repository.findTopStockByFranchiseId(franchiseId, 20, 40L))
+                .thenReturn(Flux.just(new TopStockRow(alphaId, "Alpha", null, null, null),
+                        new TopStockRow(bravoId, "bravo", null, null, null)));
+
+        StepVerifier.create(adapter.findTopStockByFranchiseId(franchiseId, Page.builder().number(2).size(20).build()))
+                .expectNext(BranchTopStock.builder().branchId(alphaId).branchName("Alpha").build())
+                .expectNext(BranchTopStock.builder().branchId(bravoId).branchName("bravo").build())
                 .verifyComplete();
     }
 
@@ -248,10 +265,10 @@ class ProductRepositoryAdapterTest {
     @Test
     void findTopStockMapsABranchWithoutActiveProductsToANullTopProduct() {
         UUID franchiseId = UUID.randomUUID();
-        when(repository.findTopStockByFranchiseId(franchiseId))
+        when(repository.findTopStockByFranchiseId(franchiseId, 20, 0L))
                 .thenReturn(Flux.just(new TopStockRow(BRANCH_ID, "Centro", null, null, null)));
 
-        StepVerifier.create(adapter.findTopStockByFranchiseId(franchiseId))
+        StepVerifier.create(adapter.findTopStockByFranchiseId(franchiseId, FIRST_PAGE))
                 .expectNext(BranchTopStock.builder().branchId(BRANCH_ID).branchName("Centro").build())
                 .verifyComplete();
     }
@@ -259,9 +276,9 @@ class ProductRepositoryAdapterTest {
     @Test
     void stalledTopStockReadFailsWithDatabaseUnavailable() {
         UUID franchiseId = UUID.randomUUID();
-        when(repository.findTopStockByFranchiseId(franchiseId)).thenReturn(Flux.never());
+        when(repository.findTopStockByFranchiseId(franchiseId, 20, 0L)).thenReturn(Flux.never());
 
-        StepVerifier.withVirtualTime(() -> adapter.findTopStockByFranchiseId(franchiseId))
+        StepVerifier.withVirtualTime(() -> adapter.findTopStockByFranchiseId(franchiseId, FIRST_PAGE))
                 .expectSubscription()
                 .thenAwait(DatabaseResilienceFixture.TIMEOUT.multipliedBy(DatabaseResilienceFixture.MAX_ATTEMPTS)
                         .plus(ALL_BACKOFFS))

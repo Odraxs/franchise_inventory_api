@@ -1,10 +1,13 @@
 package co.com.bancolombia.usecase.gettopstockreport;
 
+import co.com.bancolombia.model.branch.gateways.BranchGateway;
 import co.com.bancolombia.model.exception.BusinessException;
 import co.com.bancolombia.model.exception.BusinessException.ErrorCode;
 import co.com.bancolombia.model.franchise.gateways.FranchiseGateway;
+import co.com.bancolombia.model.page.Page;
 import co.com.bancolombia.model.product.BranchTopStock;
 import co.com.bancolombia.model.product.Product;
+import co.com.bancolombia.model.product.TopStockReport;
 import co.com.bancolombia.model.product.gateways.ProductGateway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,48 +33,70 @@ class GetTopStockReportUseCaseTest {
     private FranchiseGateway franchiseGateway;
 
     @Mock
+    private BranchGateway branchGateway;
+
+    @Mock
     private ProductGateway productGateway;
 
     private GetTopStockReportUseCase useCase;
 
     @BeforeEach
     void setUp() {
-        useCase = new GetTopStockReportUseCase(franchiseGateway, productGateway);
+        useCase = new GetTopStockReportUseCase(franchiseGateway, branchGateway, productGateway);
     }
 
     @Test
-    void listsEveryBranchSortedByNameIgnoringCase() {
-        BranchTopStock norte = branch("norte", product("Cola", 7));
-        BranchTopStock centro = branch("Centro", null);
+    void reportsThePageOfBranchesInTheGatewayOrderWithItsMetadata() {
+        Page page = Page.builder().number(1).size(3).build();
         BranchTopStock bello = branch("Bello", product("Agua", 0));
+        BranchTopStock centro = branch("Centro", null);
+        BranchTopStock norte = branch("norte", product("Cola", 7));
         when(franchiseGateway.existsById(FRANCHISE_ID)).thenReturn(Mono.just(true));
-        when(productGateway.findTopStockByFranchiseId(FRANCHISE_ID)).thenReturn(Flux.just(norte, centro, bello));
+        when(productGateway.findTopStockByFranchiseId(FRANCHISE_ID, page)).thenReturn(Flux.just(bello, centro, norte));
+        when(branchGateway.countByFranchiseId(FRANCHISE_ID)).thenReturn(Mono.just(7L));
 
-        StepVerifier.create(useCase.execute(FRANCHISE_ID))
-                .expectNextMatches(report -> FRANCHISE_ID.equals(report.franchiseId())
-                        && report.branches().equals(List.of(bello, centro, norte)))
+        StepVerifier.create(useCase.execute(FRANCHISE_ID, page))
+                .expectNext(TopStockReport.builder().franchiseId(FRANCHISE_ID).branches(List.of(bello, centro, norte))
+                        .page(1).size(3).totalElements(7).totalPages(3).build())
                 .verifyComplete();
     }
 
     @Test
-    void emitsAnEmptyListWhenTheFranchiseHasNoBranches() {
+    void reportsAnEmptyPageWithItsMetadataPastTheLastBranch() {
+        Page page = Page.builder().number(5).size(2).build();
         when(franchiseGateway.existsById(FRANCHISE_ID)).thenReturn(Mono.just(true));
-        when(productGateway.findTopStockByFranchiseId(FRANCHISE_ID)).thenReturn(Flux.empty());
+        when(productGateway.findTopStockByFranchiseId(FRANCHISE_ID, page)).thenReturn(Flux.empty());
+        when(branchGateway.countByFranchiseId(FRANCHISE_ID)).thenReturn(Mono.just(3L));
 
-        StepVerifier.create(useCase.execute(FRANCHISE_ID))
-                .expectNextMatches(report -> report.branches().isEmpty())
+        StepVerifier.create(useCase.execute(FRANCHISE_ID, page))
+                .expectNext(TopStockReport.builder().franchiseId(FRANCHISE_ID).branches(List.of())
+                        .page(5).size(2).totalElements(3).totalPages(2).build())
                 .verifyComplete();
     }
 
     @Test
-    void failsWithFranchiseNotFoundWithoutReadingProductsWhenTheFranchiseDoesNotExist() {
+    void reportsNoBranchesAndNoPagesWhenTheFranchiseHasNoBranches() {
+        Page page = Page.builder().number(Page.DEFAULT_NUMBER).size(Page.DEFAULT_SIZE).build();
+        when(franchiseGateway.existsById(FRANCHISE_ID)).thenReturn(Mono.just(true));
+        when(productGateway.findTopStockByFranchiseId(FRANCHISE_ID, page)).thenReturn(Flux.empty());
+        when(branchGateway.countByFranchiseId(FRANCHISE_ID)).thenReturn(Mono.just(0L));
+
+        StepVerifier.create(useCase.execute(FRANCHISE_ID, page))
+                .expectNextMatches(report -> report.branches().isEmpty() && report.totalElements() == 0
+                        && report.totalPages() == 0)
+                .verifyComplete();
+    }
+
+    @Test
+    void failsWithFranchiseNotFoundWithoutReadingBranchesWhenTheFranchiseDoesNotExist() {
         when(franchiseGateway.existsById(FRANCHISE_ID)).thenReturn(Mono.just(false));
 
-        StepVerifier.create(useCase.execute(FRANCHISE_ID))
+        StepVerifier.create(useCase.execute(FRANCHISE_ID,
+                        Page.builder().number(Page.DEFAULT_NUMBER).size(Page.DEFAULT_SIZE).build()))
                 .expectErrorMatches(error -> error instanceof BusinessException exception
                         && exception.getErrorCode() == ErrorCode.FRANCHISE_NOT_FOUND)
                 .verify();
-        verifyNoInteractions(productGateway);
+        verifyNoInteractions(productGateway, branchGateway);
     }
 
     private static BranchTopStock branch(String name, Product topProduct) {
