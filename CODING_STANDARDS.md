@@ -11,7 +11,7 @@ Dependencies point inward only: `app-service` → `infrastructure` → `usecase`
 
 | Layer | Module path | Holds | May depend on |
 |---|---|---|---|
-| Model | `domain/model` | Entities, value objects, domain exceptions, **gateway** interfaces (ports) in `model/<name>/gateways/` | Nothing (only the Reactor and Lombok the root build adds) |
+| Model | `domain/model` | Entities, value objects, commands, domain exceptions, **gateway** interfaces (ports) in `model/<name>/gateways/` | Nothing (only the Reactor and Lombok the root build adds) |
 | UseCase | `domain/usecase` | Business logic in `usecase/<name>/<Name>UseCase.java` | `model` only |
 | Driven adapters | `infrastructure/driven-adapters/*` | Gateway implementations: database, REST clients, queues | `model` (and `usecase` if needed), any external library |
 | Entry points | `infrastructure/entry-points/*` | `RouterRest`, `Handler`, request/response DTOs, error mapping | `usecase`, `model`, any external library |
@@ -25,6 +25,7 @@ Infrastructure modules never depend on `app-service` or on each other.
 - Keep the domain plain Java: no Spring, R2DBC, Jackson or web types.
 - Name domain classes and fields after the business (`Franchise`, `Branch`, `Product`). Technology words (`Dto`, `Request`, `Response`, `Postgres`, `R2dbc`, `Http`, `Kafka`, …) belong in infrastructure.
 - Write domain entities as Java `record`s with the Lombok Builder: `@Builder(toBuilder = true)`. Create instances with the builder, and produce a changed copy with `toBuilder()`.
+- A use case whose input cannot form a valid entity (a partial update, such as a rename without the stock) takes a command instead: a `<Name>Command` record in `model/<name>/` (for example `model/product/RenameProductCommand`) with `@Builder(toBuilder = true)`, holding the ids and the changed fields. Its compact constructor validates those fields by reusing the entity's rules (`Product.validName`, `Product.validateStock`), so a command always holds valid values and the use case does not validate again. Never build an entity with placeholder values or relax its invariants to carry a partial update.
 - Define every outside need as a gateway interface (port) in `model/<name>/gateways/`, returning `Mono`/`Flux`.
 - Express business failures as domain exceptions in `model` (for example, a business exception with an error-code enum).
 - Use cases receive gateways through the constructor and keep only `final` fields. Leave Spring annotations off: `UseCasesConfig` registers every class in `co.com.bancolombia.usecase` whose name ends with `UseCase`.
@@ -39,7 +40,7 @@ Infrastructure modules never depend on `app-service` or on each other.
 
 - Expose HTTP only through `RouterFunction` (`RouterRest`) and one handler class per resource (`FranchiseHandler`, `ProductHandler`, …).
 - The handler parses the request, calls one use case, and builds the response. It holds no business rules.
-- Request/response DTOs are Java `record`s and live in the entry point. Map them to domain models before calling the use case.
+- Request/response DTOs are Java `record`s and live in the entry point. Map them to domain models (an entity or a command) before calling the use case, inside the reactive chain (`.map(...)`), so a validation failure becomes an error signal.
 - A response DTO builds itself from its domain model with a static factory, `<Name>Response.from(<Model>)` (for example `ProductResponse.from(Product)`). Handlers call it instead of keeping private `toResponse` methods, so a mapping is written once and shared without one handler depending on another. Map a domain collection in the handler with `Flux.fromIterable(...).map(<Name>Response::from)`, not inside the DTO.
 - Map domain exceptions to HTTP status codes in the entry point, with reactive error operators.
 
