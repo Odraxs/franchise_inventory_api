@@ -169,6 +169,31 @@ class BranchRepositoryAdapterTest {
     }
 
     @Test
+    void countByFranchiseIdDelegatesToTheRepository() {
+        when(repository.countByFranchiseId(FRANCHISE_ID)).thenReturn(Mono.just(3L));
+
+        StepVerifier.create(adapter.countByFranchiseId(FRANCHISE_ID))
+                .expectNext(3L)
+                .verifyComplete();
+    }
+
+    @Test
+    void stalledCountByFranchiseIdFailsWithDatabaseUnavailable() {
+        PublisherProbe<Long> stalled = PublisherProbe.of(Mono.never());
+        when(repository.countByFranchiseId(FRANCHISE_ID)).thenReturn(stalled.mono());
+
+        StepVerifier.withVirtualTime(() -> adapter.countByFranchiseId(FRANCHISE_ID))
+                .expectSubscription()
+                .thenAwait(DatabaseResilienceFixture.TIMEOUT.multipliedBy(DatabaseResilienceFixture.MAX_ATTEMPTS)
+                        .plus(ALL_BACKOFFS))
+                .expectErrorMatches(error -> error instanceof TechnicalException exception
+                        && exception.getErrorCode() == TechnicalException.ErrorCode.DATABASE_UNAVAILABLE)
+                .verify();
+        // The retries count in the breaker, so it can open before the last attempt
+        assertThat(stalled.subscribeCount()).isBetween(2L, (long) DatabaseResilienceFixture.MAX_ATTEMPTS);
+    }
+
+    @Test
     void propagatesOtherErrorsUnchanged() {
         when(repository.save(new BranchData(null, FRANCHISE_ID, "Centro")))
                 .thenReturn(Mono.error(new DataIntegrityViolationException("ck_branch_name_not_blank")));

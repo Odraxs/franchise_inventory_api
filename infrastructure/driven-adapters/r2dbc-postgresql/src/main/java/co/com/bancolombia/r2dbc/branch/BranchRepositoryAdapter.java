@@ -46,6 +46,11 @@ public class BranchRepositoryAdapter implements BranchGateway {
         return resilience.idempotent(repository.existsByIdAndFranchiseId(id, franchiseId));
     }
 
+    @Override
+    public Mono<Long> countByFranchiseId(UUID franchiseId) {
+        return resilience.idempotent(repository.countByFranchiseId(franchiseId));
+    }
+
     private static BranchData toData(Branch branch) {
         return new BranchData(branch.id(), branch.franchiseId(), branch.name());
     }
