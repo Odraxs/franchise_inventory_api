@@ -2,19 +2,25 @@ package co.com.bancolombia.api.config;
 
 import co.com.bancolombia.api.ApiTestBase;
 import co.com.bancolombia.model.franchise.Franchise;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.TestPropertySource;
 import reactor.core.publisher.Mono;
 
 import java.util.Map;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @Import(SecurityHeadersConfig.class)
 class ConfigTest extends ApiTestBase {
+
+    private static final String FOREIGN_ORIGIN = "https://foreign.example.com";
 
     @Test
     void corsConfigurationShouldAllowOrigins() {
@@ -47,4 +53,23 @@ class ConfigTest extends ApiTestBase {
                                 + "frame-ancestors 'self'; form-action 'self'");
     }
 
+    /** The aws profile sets no origin: every cross-origin call is rejected. */
+    @Nested
+    @TestPropertySource(properties = "cors.allowed-origins=")
+    class WithEmptyAllowedOrigins {
+
+        @Test
+        void corsConfigurationShouldRejectForeignOrigin() {
+            webTestClient.post()
+                    .uri("/franchises")
+                    .header(HttpHeaders.ORIGIN, FOREIGN_ORIGIN)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(Map.of("name", "Nequi"))
+                    .exchange()
+                    .expectStatus().isForbidden()
+                    .expectHeader().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN);
+
+            verifyNoInteractions(createFranchiseUseCase);
+        }
+    }
 }

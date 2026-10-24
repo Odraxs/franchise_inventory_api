@@ -336,3 +336,11 @@ gradle-app.setting
 build-cache
 
 .env
+
+### Terraform ###
+# Keep .terraform.lock.hcl tracked: it pins provider versions and checksums.
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfplan
