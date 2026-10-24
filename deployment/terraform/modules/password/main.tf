@@ -10,7 +10,9 @@
 ephemeral "aws_secretsmanager_random_password" "this" {
   password_length = var.length
 
-  # RDS rejects "/", "@", '"' and space in the master password. The API
-  # Credential password leaves out the same characters.
-  exclude_characters = "/@\" "
+  # RDS rejects "/", "@", '"' and space in the master password. "$" is also
+  # excluded because Spring resolves "${...}" inside imported property values,
+  # so a generated password could otherwise break placeholder resolution.
+  # The API Credential password leaves out the same characters.
+  exclude_characters = "/@\" $"
 }
