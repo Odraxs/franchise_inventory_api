@@ -1,10 +1,13 @@
 package co.com.bancolombia.api;
 
-/** Route templates and path variable names shared by the router and the handler. */
+/** Route templates, path variable and query parameter names shared by the router and the handlers. */
 final class ApiPaths {
     static final String FRANCHISE_ID = "franchiseId";
     static final String BRANCH_ID = "branchId";
     static final String ID = "id";
+
+    static final String PAGE = "page";
+    static final String SIZE = "size";
 
     static final String FRANCHISES = "/franchises";
     static final String FRANCHISE = FRANCHISES + "/{" + ID + "}";

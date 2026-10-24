@@ -12,6 +12,8 @@ public interface BranchDataRepository extends ReactiveCrudRepository<BranchData,
 
     Mono<Boolean> existsByIdAndFranchiseId(UUID id, UUID franchiseId);
 
+    Mono<Long> countByFranchiseId(UUID franchiseId);
+
     /** Sets the name in one statement and returns the updated row, or empty when no row has this id in the franchise. */
     @Query("UPDATE branch SET name = :name WHERE id = :id AND franchise_id = :franchiseId "
             + "RETURNING id, franchise_id, name")

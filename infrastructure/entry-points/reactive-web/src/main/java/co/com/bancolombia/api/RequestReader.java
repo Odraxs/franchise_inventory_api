@@ -8,7 +8,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.UUID;
 
-/** Reads path ids and bodies; any value that cannot be read is an invalid request. */
+/** Reads path ids, query parameters and bodies; any value that cannot be read is an invalid request. */
 final class RequestReader {
 
     private RequestReader() {
@@ -25,6 +25,13 @@ final class RequestReader {
     static Mono<UUID> parseId(ServerRequest serverRequest, String pathVariable) {
         return Mono.fromCallable(() -> UUID.fromString(serverRequest.pathVariable(pathVariable)))
                 .onErrorMap(IllegalArgumentException.class,
+                        error -> new BusinessException(ErrorCode.INVALID_REQUEST, error));
+    }
+
+    /** A missing parameter takes the default; a value that is not an int (empty, non-numeric, too large) is invalid. */
+    static Mono<Integer> parseIntQueryParam(ServerRequest serverRequest, String name, int defaultValue) {
+        return Mono.fromCallable(() -> serverRequest.queryParam(name).map(Integer::valueOf).orElse(defaultValue))
+                .onErrorMap(NumberFormatException.class,
                         error -> new BusinessException(ErrorCode.INVALID_REQUEST, error));
     }
 }

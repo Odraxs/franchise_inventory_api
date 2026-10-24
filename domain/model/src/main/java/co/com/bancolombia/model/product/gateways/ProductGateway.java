@@ -1,5 +1,6 @@
 package co.com.bancolombia.model.product.gateways;
 
+import co.com.bancolombia.model.page.Page;
 import co.com.bancolombia.model.product.BranchTopStock;
 import co.com.bancolombia.model.product.Product;
 import reactor.core.publisher.Flux;
@@ -37,8 +38,10 @@ public interface ProductGateway {
     Mono<Product> rename(UUID id, UUID branchId, String name);
 
     /**
-     * Emits every Branch of the Franchise with its Top-Stock Product: the active Product with the highest stock,
-     * and on a tie the oldest one. A Branch with no active Product has a null topProduct.
+     * Emits one page of the Branches of the Franchise, each with its Top-Stock Product: the active Product with the
+     * highest stock, and on a tie the oldest one. A Branch with no active Product has a null topProduct.
+     * Branches are sorted by name ignoring case, then by id, so the order is stable across pages. A page past the
+     * last Branch emits nothing.
      */
-    Flux<BranchTopStock> findTopStockByFranchiseId(UUID franchiseId);
+    Flux<BranchTopStock> findTopStockByFranchiseId(UUID franchiseId, Page page);
 }

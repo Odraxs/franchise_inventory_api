@@ -33,6 +33,8 @@ public abstract class IntegrationTestBase {
     private static final String CLIENT_PASSWORD = "integration-test-only-api-credential-0123456789";
     private static final String NAME = "name";
     private static final String STOCK = "stock";
+    private static final String PAGE = "page";
+    private static final String SIZE = "size";
 
     /**
      * Started once per JVM, before any Spring context reads its address, and never stopped by a test class: a
@@ -108,6 +110,14 @@ public abstract class IntegrationTestBase {
     protected WebTestClient.ResponseSpec getTopStockReport(UUID franchiseId) {
         return webTestClient.get()
                 .uri(TOP_STOCK_PRODUCTS, franchiseId)
+                .accept(MediaType.APPLICATION_JSON)
+                .exchange();
+    }
+
+    protected WebTestClient.ResponseSpec getTopStockReport(UUID franchiseId, int page, int size) {
+        return webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path(TOP_STOCK_PRODUCTS).queryParam(PAGE, page).queryParam(SIZE, size)
+                        .build(franchiseId))
                 .accept(MediaType.APPLICATION_JSON)
                 .exchange();
     }

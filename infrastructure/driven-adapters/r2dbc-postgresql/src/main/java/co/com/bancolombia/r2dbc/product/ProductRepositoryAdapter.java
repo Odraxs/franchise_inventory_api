@@ -2,6 +2,7 @@ package co.com.bancolombia.r2dbc.product;
 
 import co.com.bancolombia.model.exception.BusinessException;
 import co.com.bancolombia.model.exception.BusinessException.ErrorCode;
+import co.com.bancolombia.model.page.Page;
 import co.com.bancolombia.model.product.BranchTopStock;
 import co.com.bancolombia.model.product.Product;
 import co.com.bancolombia.model.product.gateways.ProductGateway;
@@ -56,8 +57,9 @@ public class ProductRepositoryAdapter implements ProductGateway {
     }
 
     @Override
-    public Flux<BranchTopStock> findTopStockByFranchiseId(UUID franchiseId) {
-        return resilience.idempotent(repository.findTopStockByFranchiseId(franchiseId)).map(ProductRepositoryAdapter::toEntity);
+    public Flux<BranchTopStock> findTopStockByFranchiseId(UUID franchiseId, Page page) {
+        return resilience.idempotent(repository.findTopStockByFranchiseId(franchiseId, page.size(), page.offset()))
+                .map(ProductRepositoryAdapter::toEntity);
     }
 
     private static ProductData toData(Product product) {

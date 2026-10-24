@@ -24,4 +24,7 @@ public interface BranchGateway {
 
     /** Emits true when a Branch with this id exists in the Franchise, false otherwise. */
     Mono<Boolean> existsByIdAndFranchiseId(UUID id, UUID franchiseId);
+
+    /** Emits how many Branches the Franchise has, 0 when it has none. */
+    Mono<Long> countByFranchiseId(UUID franchiseId);
 }
