@@ -4,6 +4,8 @@ import co.com.bancolombia.model.exception.BusinessException;
 import co.com.bancolombia.model.exception.BusinessException.ErrorCode;
 import co.com.bancolombia.model.exception.TechnicalException;
 import co.com.bancolombia.model.product.Product;
+import co.com.bancolombia.model.product.RenameProductCommand;
+import co.com.bancolombia.model.product.UpdateProductStockCommand;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -134,7 +136,8 @@ class ProductHandlerTest extends ApiTestBase {
         UUID franchiseId = UUID.randomUUID();
         UUID branchId = UUID.randomUUID();
         UUID id = UUID.randomUUID();
-        when(renameProductUseCase.execute(franchiseId, branchId, id, "  Cola  "))
+        when(renameProductUseCase.execute(RenameProductCommand.builder().franchiseId(franchiseId).branchId(branchId)
+                .productId(id).name("Cola").build()))
                 .thenReturn(Mono.just(Product.builder().id(id).branchId(branchId).name("Cola").stock(7).build()));
 
         patchProduct(franchiseId.toString(), branchId.toString(), id.toString(), Map.of("name", "  Cola  "))
@@ -149,7 +152,8 @@ class ProductHandlerTest extends ApiTestBase {
     @Test
     void renameProductIgnoresUnknownFields() {
         UUID id = UUID.randomUUID();
-        when(renameProductUseCase.execute(any(UUID.class), any(UUID.class), eq(id), eq("Cola")))
+        when(renameProductUseCase.execute(argThat(command -> id.equals(command.productId())
+                && "Cola".equals(command.name()))))
                 .thenReturn(Mono.just(Product.builder().id(id).branchId(UUID.randomUUID()).name("Cola").stock(7).build()));
 
         patchProduct(UUID.randomUUID().toString(), UUID.randomUUID().toString(), id.toString(),
@@ -192,7 +196,7 @@ class ProductHandlerTest extends ApiTestBase {
             "DUPLICATE_PRODUCT_NAME, 409"
     })
     void renameProductMapsBusinessErrorsToStatusAndCode(ErrorCode errorCode, int status) {
-        when(renameProductUseCase.execute(any(UUID.class), any(UUID.class), any(UUID.class), any()))
+        when(renameProductUseCase.execute(any(RenameProductCommand.class)))
                 .thenReturn(Mono.error(new BusinessException(errorCode)));
 
         patchProduct(UUID.randomUUID().toString(), UUID.randomUUID().toString(), UUID.randomUUID().toString(),
@@ -203,15 +207,14 @@ class ProductHandlerTest extends ApiTestBase {
                 .jsonPath("$.message").isEqualTo(new BusinessException(errorCode).getMessage());
     }
 
-    @Test
-    void renameProductPassesAMissingNameToTheUseCase() {
-        when(renameProductUseCase.execute(any(UUID.class), any(UUID.class), any(UUID.class), eq(null)))
-                .thenReturn(Mono.error(new BusinessException(ErrorCode.INVALID_PRODUCT_NAME)));
-
-        patchProduct(UUID.randomUUID().toString(), UUID.randomUUID().toString(), UUID.randomUUID().toString(), "{}")
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"name\": null}", "{\"name\": \"   \"}"})
+    void renameProductReturns400InvalidProductNameWithoutCallingTheUseCase(String body) {
+        patchProduct(UUID.randomUUID().toString(), UUID.randomUUID().toString(), UUID.randomUUID().toString(), body)
                 .expectStatus().isBadRequest()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo("INVALID_PRODUCT_NAME");
+        verifyNoInteractions(renameProductUseCase);
     }
 
     @ParameterizedTest
@@ -307,7 +310,8 @@ class ProductHandlerTest extends ApiTestBase {
         UUID franchiseId = UUID.randomUUID();
         UUID branchId = UUID.randomUUID();
         UUID id = UUID.randomUUID();
-        when(updateProductStockUseCase.execute(franchiseId, branchId, id, 0))
+        when(updateProductStockUseCase.execute(UpdateProductStockCommand.builder().franchiseId(franchiseId)
+                .branchId(branchId).productId(id).stock(0).build()))
                 .thenReturn(Mono.just(Product.builder().id(id).branchId(branchId).name("Cola").stock(0).build()));
 
         patchStock(franchiseId.toString(), branchId.toString(), id.toString(), "{\"stock\": 0}")
@@ -321,7 +325,8 @@ class ProductHandlerTest extends ApiTestBase {
     @Test
     void updateProductStockIgnoresUnknownFields() {
         UUID id = UUID.randomUUID();
-        when(updateProductStockUseCase.execute(any(UUID.class), any(UUID.class), eq(id), eq(3)))
+        when(updateProductStockUseCase.execute(argThat(command -> id.equals(command.productId())
+                && command.stock() == 3)))
                 .thenReturn(Mono.just(Product.builder().id(id).branchId(id).name("Cola").stock(3).build()));
 
         patchStock(UUID.randomUUID().toString(), UUID.randomUUID().toString(), id.toString(),
@@ -339,7 +344,7 @@ class ProductHandlerTest extends ApiTestBase {
             "PRODUCT_NOT_FOUND, 404"
     })
     void updateProductStockMapsBusinessErrorsToStatusAndCode(ErrorCode errorCode, int status) {
-        when(updateProductStockUseCase.execute(any(UUID.class), any(UUID.class), any(UUID.class), any()))
+        when(updateProductStockUseCase.execute(any(UpdateProductStockCommand.class)))
                 .thenReturn(Mono.error(new BusinessException(errorCode)));
 
         patchStock(UUID.randomUUID().toString(), UUID.randomUUID().toString(), UUID.randomUUID().toString(),
@@ -351,14 +356,12 @@ class ProductHandlerTest extends ApiTestBase {
 
     @ParameterizedTest
     @ValueSource(strings = {"{}", "{\"stock\": null}", "{\"stock\": -1}"})
-    void updateProductStockReturns400InvalidStockFromTheUseCase(String body) {
-        when(updateProductStockUseCase.execute(any(UUID.class), any(UUID.class), any(UUID.class), any()))
-                .thenReturn(Mono.error(new BusinessException(ErrorCode.INVALID_STOCK)));
-
+    void updateProductStockReturns400InvalidStockWithoutCallingTheUseCase(String body) {
         patchStock(UUID.randomUUID().toString(), UUID.randomUUID().toString(), UUID.randomUUID().toString(), body)
                 .expectStatus().isBadRequest()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo("INVALID_STOCK");
+        verifyNoInteractions(updateProductStockUseCase);
     }
 
     @ParameterizedTest
