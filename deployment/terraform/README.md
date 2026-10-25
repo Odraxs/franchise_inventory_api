@@ -177,6 +177,7 @@ deployment/
 | `api_secret_name` | Name of the API Secret. The smoke test reads the API Credential from it. |
 | `ecs_cluster_name` | Name of the ECS cluster. |
 | `ecs_service_name` | Name of the ECS service. Null without `image_tag`. |
+| `ecs_task_definition_arn` | ARN of the ECS task definition, including its revision, that the Environment deploys. Null without `image_tag`. |
 | `ecs_log_group_name` | CloudWatch log group of the API container. |
 
 ## Prerequisites
@@ -598,8 +599,9 @@ It does these steps:
 2. It publishes the image with `deployment/scripts/publish-image.sh dev`. If the Image Tag of the commit already exists in ECR (a re-run of the same commit), it reuses that image.
 3. It runs `terraform init`, then `terraform plan` with `-var image_tag=<tag>`, then `terraform apply` of that saved plan.
 4. It waits until the ECS service is stable (`aws ecs wait services-stable`).
-5. It checks that `POST /franchises` without credentials answers `401` through the ALB.
-6. It writes the Image Tag and the API URL to the job summary.
+5. It checks that the service runs the task definition revision that this apply created, so a circuit-breaker rollback fails the run.
+6. It checks that `POST /franchises` without credentials answers `401` through the ALB.
+7. It writes the Image Tag and the API URL to the job summary.
 
 Only one deploy runs at a time, and a running deploy is never cancelled, so the state lock is always released.
 The Docker build skips the tests, so deploy only a commit whose CI run on `main` passed.

@@ -87,15 +87,39 @@ jobs:
             echo "alb_url=$(terraform output -raw alb_url)"
             echo "cluster=$(terraform output -raw ecs_cluster_name)"
             echo "service=$(terraform output -raw ecs_service_name)"
+            echo "task_definition=$(terraform output -raw ecs_task_definition_arn)"
           } >> "$GITHUB_OUTPUT"
 
       # apply returns when ECS accepts the deployment; this waits for healthy tasks.
       # A failed deployment is rolled back by the circuit breaker and this step times out.
       - name: Wait for the ECS service
+        env:
+          CLUSTER: ${{ steps.outputs.outputs.cluster }}
+          SERVICE: ${{ steps.outputs.outputs.service }}
         run: |
           aws ecs wait services-stable \
-            --cluster "${{ steps.outputs.outputs.cluster }}" \
-            --services "${{ steps.outputs.outputs.service }}"
+            --cluster "${CLUSTER}" \
+            --services "${SERVICE}"
+
+      # After a rollback, services-stable succeeds on the previous revision, which
+      # would make the smoke check pass against the old image. Compare the running
+      # revision with the one this apply created.
+      - name: Verify the deployed revision
+        env:
+          CLUSTER: ${{ steps.outputs.outputs.cluster }}
+          SERVICE: ${{ steps.outputs.outputs.service }}
+          EXPECTED_TASK_DEFINITION: ${{ steps.outputs.outputs.task_definition }}
+        run: |
+          running_task_definition="$(aws ecs describe-services \
+            --cluster "${CLUSTER}" \
+            --services "${SERVICE}" \
+            --query 'services[0].taskDefinition' \
+            --output text)"
+          if [[ "${running_task_definition}" != "${EXPECTED_TASK_DEFINITION}" ]]; then
+            echo "::error::ECS rolled back: expected ${EXPECTED_TASK_DEFINITION}, but the service runs ${running_task_definition}."
+            exit 1
+          fi
+          echo "ECS is running the task definition from this apply: ${running_task_definition}"
 
       # A call without credentials must get 401. It is rejected before the body is read,
       # so it creates nothing. A new ALB DNS name can take a few minutes to resolve.

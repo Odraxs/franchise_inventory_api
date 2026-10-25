@@ -8,6 +8,11 @@ output "service_name" {
   value       = one(aws_ecs_service.this[*].name)
 }
 
+output "task_definition_arn" {
+  description = "ARN of the task definition, including its revision. Null until an image is published (container_image is null)."
+  value       = one(aws_ecs_task_definition.this[*].arn)
+}
+
 output "log_group_name" {
   description = "Name of the CloudWatch log group that holds the container logs."
   value       = aws_cloudwatch_log_group.this.name
