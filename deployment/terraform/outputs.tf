@@ -38,6 +38,11 @@ output "ecs_service_name" {
   value       = module.ecs_service.service_name
 }
 
+output "ecs_task_definition_arn" {
+  description = "ARN of the ECS task definition, including its revision, that the Environment deploys. Null until image_tag is set."
+  value       = module.ecs_service.task_definition_arn
+}
+
 output "ecs_log_group_name" {
   description = "CloudWatch log group of the API container, e.g. for aws logs tail --follow."
   value       = module.ecs_service.log_group_name

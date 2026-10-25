@@ -289,3 +289,4 @@ franchise-inventory-api.postman_collection.json  API requests for Postman, Insom
 
 The API runs on AWS (ECS Fargate, ALB, RDS PostgreSQL 17 and Secrets Manager), built with modular Terraform.
 See [`deployment/terraform/README.md`](deployment/terraform/README.md) for the architecture, the key decisions and the step-by-step runbook.
+To deploy, start the manual **Deploy** workflow on `main`. It publishes the image and applies Terraform to `dev`. Its one-time setup is in [CD pipeline](deployment/terraform/README.md#cd-pipeline).

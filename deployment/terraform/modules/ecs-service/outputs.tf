@@ -8,6 +8,11 @@ output "service_name" {
   value       = one(aws_ecs_service.this[*].name)
 }
 
+output "task_definition_arn" {
+  description = "ARN of the task definition, including its revision. Null until an image is published (container_image is null)."
+  value       = one(aws_ecs_task_definition.this[*].arn)
+}
+
 output "log_group_name" {
   description = "Name of the CloudWatch log group that holds the container logs."
   value       = aws_cloudwatch_log_group.this.name
@@ -43,6 +48,14 @@ output "assume_role_policies" {
   value = {
     execution = jsondecode(aws_iam_role.execution.assume_role_policy)
     task      = jsondecode(aws_iam_role.task.assume_role_policy)
+  }
+}
+
+output "permissions_boundaries" {
+  description = "Planned permissions boundaries of the execution and task roles. Exposed so tests can assert them."
+  value = {
+    execution = aws_iam_role.execution.permissions_boundary
+    task      = aws_iam_role.task.permissions_boundary
   }
 }
 

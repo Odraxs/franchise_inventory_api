@@ -11,11 +11,12 @@ It holds the Root Composition, six Terraform Modules, the Bootstrap Stack and th
 4. [Prerequisites](#prerequisites)
 5. [Account inputs (never committed)](#account-inputs-never-committed)
 6. [Runbook](#runbook)
-7. [Key decisions and trade-offs](#key-decisions-and-trade-offs)
-8. [IaC principles](#iac-principles)
-9. [Quality checks](#quality-checks)
-10. [Cost notes](#cost-notes)
-11. [Known limits and future work](#known-limits-and-future-work)
+7. [CD pipeline](#cd-pipeline)
+8. [Key decisions and trade-offs](#key-decisions-and-trade-offs)
+9. [IaC principles](#iac-principles)
+10. [Quality checks](#quality-checks)
+11. [Cost notes](#cost-notes)
+12. [Known limits and future work](#known-limits-and-future-work)
 
 ## Overview
 
@@ -127,7 +128,7 @@ deployment/
 ├── scripts/
 │   └── publish-image.sh          # Builds the image and pushes it to ECR with the Image Tag
 └── terraform/
-    ├── bootstrap/                # Bootstrap Stack: the Remote State bucket (local state)
+    ├── bootstrap/                # Bootstrap Stack: the Remote State bucket and the deployer user (local state)
     ├── modules/
     │   ├── network/
     │   ├── ecr/
@@ -154,7 +155,7 @@ deployment/
 
 | Part | Owns |
 |---|---|
-| `bootstrap/` | The S3 bucket `franchise-inventory-tfstate-<account_id>` for the Remote State: versioning, AES256 encryption, a public access block and `BucketOwnerEnforced` ownership. It uses local state. Output: `state_bucket`. |
+| `bootstrap/` | The S3 bucket `franchise-inventory-tfstate-<account_id>` for the Remote State: versioning, AES256 encryption, a public access block and `BucketOwnerEnforced` ownership. It also owns `franchise-inventory-deployer`, the IAM user of the [CD pipeline](#cd-pipeline), and `franchise-inventory-ecs-role-boundary`, the permissions boundary of every project IAM role. It uses local state. Outputs: `state_bucket`, `deployer_user_name`, `deployer_user_arn` and `role_boundary_arn`. |
 | `modules/network` | The VPC over `az_count` Availability Zones, the internet gateway, one public and one private subnet per AZ (`/20` blocks), the route tables, and one optional NAT Gateway with its Elastic IP. |
 | `modules/ecr` | One private repository per Environment with `IMMUTABLE` tags, scan on push, AES256 encryption and a lifecycle policy. The policy expires untagged images after 1 day and keeps the `max_image_count` most recent images. |
 | `modules/database` | The DB subnet group, the DB SG, the RDS instance (gp3, encrypted, not public) and the DB Secret with its version. The shared `password` module generates the ephemeral master password. |
@@ -176,6 +177,7 @@ deployment/
 | `api_secret_name` | Name of the API Secret. The smoke test reads the API Credential from it. |
 | `ecs_cluster_name` | Name of the ECS cluster. |
 | `ecs_service_name` | Name of the ECS service. Null without `image_tag`. |
+| `ecs_task_definition_arn` | ARN of the ECS task definition, including its revision, that the Environment deploys. Null without `image_tag`. |
 | `ecs_log_group_name` | CloudWatch log group of the API container. |
 
 ## Prerequisites
@@ -584,6 +586,87 @@ You can also use **Empty** on the bucket page of the S3 console.
 terraform -chdir=bootstrap destroy
 ```
 
+This also deletes the deployer user and its access key, so the CD pipeline stops working.
+
+## CD pipeline
+
+The workflow `.github/workflows/deploy.yml` runs runbook steps 5, 6 and 8 in GitHub Actions.
+It deploys `dev` only, and it runs only when you start it by hand from `main`.
+
+It does these steps:
+
+1. It logs in to AWS with the access key of the deployer user.
+2. It publishes the image with `deployment/scripts/publish-image.sh dev`. If the Image Tag of the commit already exists in ECR (a re-run of the same commit), it reuses that image.
+3. It runs `terraform init`, then `terraform plan` with `-var image_tag=<tag>`, then `terraform apply` of that saved plan.
+4. It waits until the ECS service is stable (`aws ecs wait services-stable`).
+5. It checks that the service runs the task definition revision that this apply created, so a circuit-breaker rollback fails the run.
+6. It checks that `POST /franchises` without credentials answers `401` through the ALB.
+7. It writes the Image Tag and the API URL to the job summary.
+
+Only one deploy runs at a time, and a running deploy is never cancelled, so the state lock is always released.
+The Docker build skips the tests, so deploy only a commit whose CI run on `main` passed.
+
+### One-time setup
+
+Do these steps once, after runbook steps 1 to 4. Step 4 creates the ECR repository, and the pipeline needs it.
+
+1. **Create the deployer user.** Run the Bootstrap Stack apply again (runbook step 2). It creates the IAM user `franchise-inventory-deployer` and the permissions boundary `franchise-inventory-ecs-role-boundary`. The user has `PowerUserAccess`, plus an inline policy that may manage only the IAM roles named `franchise-inventory-*` and pass them to ECS tasks. It may create a role, or change a role's inline policy, only when the role carries the boundary. It may never remove the boundary or assume a project role. So the user cannot build a role with more rights than it has.
+
+   The ECS roles of the Root Composition carry this boundary. Apply the Bootstrap Stack before any `terraform apply` of an Environment, including a local one, or creating the roles fails because the boundary policy does not exist.
+2. **Create its access key.** Terraform does not create the key, so the secret never enters the Bootstrap state:
+
+   ```bash
+   aws iam create-access-key \
+     --user-name "$(terraform -chdir=bootstrap output -raw deployer_user_name)"
+   ```
+
+   The output shows the secret access key only once. Put it straight into GitHub in the next step, and do not save it anywhere else.
+3. **Create the GitHub Environment `dev`.** Go to *Settings → Environments → New environment*. Under *Deployment branches and tags*, choose *Selected branches and tags* and add `main`. The job also checks the branch itself, so a run from another branch is skipped.
+4. **Add the Environment secrets** of `dev`:
+
+   | Secret | Value |
+   |---|---|
+   | `AWS_ACCESS_KEY_ID` | `AccessKeyId` from step 2 |
+   | `AWS_SECRET_ACCESS_KEY` | `SecretAccessKey` from step 2 |
+   | `TF_VAR_BUDGET_ALERT_EMAIL` | The budget alert email (see [Account inputs](#account-inputs-never-committed)) |
+
+5. **Add the Environment variables** of `dev`:
+
+   | Variable | Value |
+   |---|---|
+   | `AWS_REGION` | `us-east-1` |
+   | `TF_STATE_BUCKET` | `terraform -chdir=bootstrap output -raw state_bucket` |
+
+### Run a deploy
+
+Go to *Actions → Deploy → Run workflow*, keep `main` as the branch, and start the run.
+From the terminal, run:
+
+```bash
+gh workflow run deploy.yml --ref main
+```
+
+The run deploys the latest commit on `main`.
+
+### Roll back
+
+Revert the bad commit on `main` and run the workflow again.
+To go back to an older image without a new commit, apply its Image Tag by hand (runbook step 8).
+The next pipeline run deploys `main` again.
+
+### Rotate the access key
+
+1. Create a second key with `aws iam create-access-key` (a user can have two keys).
+2. Replace both key secrets in the `dev` GitHub Environment.
+3. Run the workflow once to check the new key.
+4. Delete the old key:
+
+   ```bash
+   aws iam delete-access-key \
+     --user-name franchise-inventory-deployer \
+     --access-key-id <old-key-id>
+   ```
+
 ## Key decisions and trade-offs
 
 ### The app reads its secrets itself
@@ -738,7 +821,7 @@ Destroy `dev` when you do not use it.
 - **No automatic secret rotation and no runtime reload.** Rotation is the manual `db_password_version` and `api_credential_version` steps. The app reads both secrets only at startup, so a rotation needs a new ECS deployment.
 - **No HTTPS in `dev`.** `dev` has no domain, so its ALB serves HTTP on port 80 and the API Credential travels without encryption (see "Key decisions"). `prod` requires an ACM certificate, and `staging` adds HTTPS on port 443 with a redirect from HTTP when `alb_certificate_arn` is set.
 - **No `verify-full` SSL.** The app uses `require`: the connection is encrypted, but the app does not verify the RDS certificate against the RDS CA bundle.
-- **No CI/CD pipeline.** A developer runs Terraform by hand. `publish-image.sh` is non-interactive, writes logs to stderr and prints only the Image Tag, so a CD pipeline can call it later.
+- **The CD pipeline uses a long-lived access key and deploys `dev` only.** GitHub OIDC with an IAM role would remove the stored key. A run has no approval step between plan and apply: starting the run by hand is the approval. The first apply without an Image Tag (runbook step 4) is still manual.
 - **Fixed final snapshot name.** In `staging` and `prod`, a second destroy fails until the old `franchise-inventory-<env>-db-final` snapshot is deleted.
 - **DB Secret host and port refresh only with the password version** (see "Key decisions").
 - **No rate limiting at the edge.** The ALB has no AWS WAF web ACL. A later option is an optional WAF web ACL with a rate-based rule on the ALB, behind a variable that is off by default, because WAF adds a monthly charge.
