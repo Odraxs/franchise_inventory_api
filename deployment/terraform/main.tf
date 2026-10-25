@@ -1,8 +1,13 @@
 # Root Composition: one code base, selected per Environment with
 # envs/<env>.tfvars and envs/<env>.backend.hcl (no workspaces).
 
+data "aws_caller_identity" "current" {}
+
 locals {
   project = "franchise-inventory"
+
+  # Created by the Bootstrap Stack (bootstrap/deployer.tf) under this fixed name.
+  role_permissions_boundary_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/${local.project}-ecs-role-boundary"
 
   # Every resource name is "<name_prefix>-<resource>", e.g. franchise-inventory-dev-api.
   name_prefix = "${local.project}-${var.environment}"
@@ -97,6 +102,8 @@ module "ecs_service" {
   aws_region         = var.aws_region
   container_image    = local.container_image
   ecr_repository_arn = module.ecr.repository_arn
+
+  role_permissions_boundary_arn = local.role_permissions_boundary_arn
 
   vpc_id                = module.network.vpc_id
   subnet_ids            = local.task_subnet_ids

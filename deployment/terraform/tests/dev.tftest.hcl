@@ -464,6 +464,14 @@ run "dev_plan" {
   }
 
   assert {
+    condition = alltrue([
+      for boundary in values(module.ecs_service.permissions_boundaries) :
+      boundary == "arn:aws:iam::123456789012:policy/franchise-inventory-ecs-role-boundary"
+    ])
+    error_message = "Both ECS roles must carry the Bootstrap Stack's permissions boundary, or the deployer cannot create or change them."
+  }
+
+  assert {
     condition = (
       module.ecs_service.task_security_group_rules.ingress == {
         from_port                = 8080

@@ -12,3 +12,8 @@ output "deployer_user_arn" {
   description = "ARN of the IAM user of the CD pipeline."
   value       = aws_iam_user.deployer.arn
 }
+
+output "role_boundary_arn" {
+  description = "ARN of the permissions boundary that every project IAM role must carry."
+  value       = aws_iam_policy.role_boundary.arn
+}

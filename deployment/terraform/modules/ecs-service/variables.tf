@@ -14,6 +14,11 @@ variable "container_image" {
   default     = null
 }
 
+variable "role_permissions_boundary_arn" {
+  description = "ARN of the permissions boundary for the execution and task roles. The Bootstrap Stack creates it, and the deployer may create or change a role only with it."
+  type        = string
+}
+
 variable "ecr_repository_arn" {
   description = "ARN of the Environment's ECR repository. The execution role may pull images only from it."
   type        = string

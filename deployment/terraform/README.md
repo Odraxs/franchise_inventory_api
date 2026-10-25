@@ -155,7 +155,7 @@ deployment/
 
 | Part | Owns |
 |---|---|
-| `bootstrap/` | The S3 bucket `franchise-inventory-tfstate-<account_id>` for the Remote State: versioning, AES256 encryption, a public access block and `BucketOwnerEnforced` ownership. It also owns `franchise-inventory-deployer`, the IAM user of the [CD pipeline](#cd-pipeline). It uses local state. Outputs: `state_bucket`, `deployer_user_name` and `deployer_user_arn`. |
+| `bootstrap/` | The S3 bucket `franchise-inventory-tfstate-<account_id>` for the Remote State: versioning, AES256 encryption, a public access block and `BucketOwnerEnforced` ownership. It also owns `franchise-inventory-deployer`, the IAM user of the [CD pipeline](#cd-pipeline), and `franchise-inventory-ecs-role-boundary`, the permissions boundary of every project IAM role. It uses local state. Outputs: `state_bucket`, `deployer_user_name`, `deployer_user_arn` and `role_boundary_arn`. |
 | `modules/network` | The VPC over `az_count` Availability Zones, the internet gateway, one public and one private subnet per AZ (`/20` blocks), the route tables, and one optional NAT Gateway with its Elastic IP. |
 | `modules/ecr` | One private repository per Environment with `IMMUTABLE` tags, scan on push, AES256 encryption and a lifecycle policy. The policy expires untagged images after 1 day and keeps the `max_image_count` most recent images. |
 | `modules/database` | The DB subnet group, the DB SG, the RDS instance (gp3, encrypted, not public) and the DB Secret with its version. The shared `password` module generates the ephemeral master password. |
@@ -608,7 +608,9 @@ The Docker build skips the tests, so deploy only a commit whose CI run on `main`
 
 Do these steps once, after runbook steps 1 to 4. Step 4 creates the ECR repository, and the pipeline needs it.
 
-1. **Create the deployer user.** Run the Bootstrap Stack apply again (runbook step 2). It creates the IAM user `franchise-inventory-deployer`. The user has `PowerUserAccess`, plus an inline policy that may manage only the IAM roles named `franchise-inventory-*` and pass them to ECS tasks.
+1. **Create the deployer user.** Run the Bootstrap Stack apply again (runbook step 2). It creates the IAM user `franchise-inventory-deployer` and the permissions boundary `franchise-inventory-ecs-role-boundary`. The user has `PowerUserAccess`, plus an inline policy that may manage only the IAM roles named `franchise-inventory-*` and pass them to ECS tasks. It may create a role, or change a role's inline policy, only when the role carries the boundary. It may never remove the boundary or assume a project role. So the user cannot build a role with more rights than it has.
+
+   The ECS roles of the Root Composition carry this boundary. Apply the Bootstrap Stack before any `terraform apply` of an Environment, including a local one, or creating the roles fails because the boundary policy does not exist.
 2. **Create its access key.** Terraform does not create the key, so the secret never enters the Bootstrap state:
 
    ```bash

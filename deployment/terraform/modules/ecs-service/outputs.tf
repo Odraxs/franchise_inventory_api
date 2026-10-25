@@ -46,6 +46,14 @@ output "assume_role_policies" {
   }
 }
 
+output "permissions_boundaries" {
+  description = "Planned permissions boundaries of the execution and task roles. Exposed so tests can assert them."
+  value = {
+    execution = aws_iam_role.execution.permissions_boundary
+    task      = aws_iam_role.task.permissions_boundary
+  }
+}
+
 output "log_retention_days" {
   description = "Planned retention of the log group in days. Exposed so tests can assert it."
   value       = aws_cloudwatch_log_group.this.retention_in_days

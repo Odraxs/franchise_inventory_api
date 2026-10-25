@@ -102,9 +102,10 @@ resource "aws_cloudwatch_log_group" "this" {
 # ---------------------------------------------------------------------------
 
 resource "aws_iam_role" "execution" {
-  name               = "${var.name_prefix}-ecs-execution"
-  description        = "ECS agent of ${var.name_prefix}: pull the image from ECR and write the container logs"
-  assume_role_policy = local.ecs_tasks_assume_role_policy
+  name                 = "${var.name_prefix}-ecs-execution"
+  description          = "ECS agent of ${var.name_prefix}: pull the image from ECR and write the container logs"
+  assume_role_policy   = local.ecs_tasks_assume_role_policy
+  permissions_boundary = var.role_permissions_boundary_arn
 }
 
 resource "aws_iam_role_policy" "execution" {
@@ -114,9 +115,10 @@ resource "aws_iam_role_policy" "execution" {
 }
 
 resource "aws_iam_role" "task" {
-  name               = "${var.name_prefix}-ecs-task"
-  description        = "API of ${var.name_prefix}: read the DB Secret and the API Secret only"
-  assume_role_policy = local.ecs_tasks_assume_role_policy
+  name                 = "${var.name_prefix}-ecs-task"
+  description          = "API of ${var.name_prefix}: read the DB Secret and the API Secret only"
+  assume_role_policy   = local.ecs_tasks_assume_role_policy
+  permissions_boundary = var.role_permissions_boundary_arn
 }
 
 resource "aws_iam_role_policy" "task" {

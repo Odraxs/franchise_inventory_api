@@ -38,6 +38,13 @@ mock_provider "aws" {
       names = ["us-east-1a", "us-east-1b", "us-east-1c"]
     }
   }
+
+  # The role permissions boundary ARN embeds the account ID, which must be 12 digits.
+  mock_data "aws_caller_identity" {
+    defaults = {
+      account_id = "123456789012"
+    }
+  }
 }
 
 # Mock providers cannot hold ephemeral resources, so the ephemeral password provider
